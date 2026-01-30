@@ -309,6 +309,8 @@
 
     <div class="controls">
         <button class="folder-btn" id="folder-btn">📁</button>
+        <button class="debug-btn" id="toggle-debug"
+            style="flex: 0 0 auto; padding: 15px; font-size: 1.2rem; background: #333; border: 1px solid #555; border-radius: 14px; color: #fff;">🐞</button>
         <button class="random-btn" id="random-btn" disabled>🎲 Rastgele Sayfa</button>
     </div>
 
@@ -352,8 +354,7 @@
         </div>
         <div id="debug-content"></div>
     </div>
-    <button id="toggle-debug"
-        style="position: fixed; bottom: 80px; right: 20px; opacity: 1; background: rgba(220, 20, 60, 0.9); color: white; border: 2px solid white; padding: 12px; font-size: 24px; z-index: 10000; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">🐞</button>
+
 
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
