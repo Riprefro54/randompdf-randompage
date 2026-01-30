@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+    <title>PDF Rastgele Sayfa</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+        }
+
+        .header {
+            flex-shrink: 0;
+            padding: 12px 15px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #e94560;
+            margin-bottom: 4px;
+        }
+
+        .info-text {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .pdf-count {
+            background: rgba(233, 69, 96, 0.2);
+            color: #e94560;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            display: inline-block;
+            margin-top: 5px;
+        }
+
+        .pdf-container {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 10px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #pdf-canvas {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .controls {
+            flex-shrink: 0;
+            padding: 12px 15px;
+            background: rgba(0, 0, 0, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 10px;
+        }
+
+        .folder-btn {
+            flex: 0 0 auto;
+            padding: 15px 20px;
+            font-size: 1.5rem;
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+        }
+
+        .folder-btn:active {
+            transform: scale(0.95);
+        }
+
+        .random-btn {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: white;
+            background: linear-gradient(135deg, #e94560 0%, #f27121 100%);
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(233, 69, 96, 0.4);
+        }
+
+        .random-btn:active {
+            transform: scale(0.97);
+        }
+
+        .random-btn:disabled {
+            background: #444;
+            box-shadow: none;
+        }
+
+        .loading,
+        .placeholder {
+            text-align: center;
+            padding: 30px 20px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .loading {
+            display: none;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .placeholder-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: #1e2746;
+            border-radius: 16px;
+            padding: 20px;
+            max-width: 350px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal h2 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: #e94560;
+        }
+
+        .modal-btn {
+            width: 100%;
+            padding: 14px;
+            margin: 8px 0;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        .modal-btn.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .modal-btn.danger {
+            background: #e94560;
+            color: white;
+        }
+
+        .modal-btn.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .modal-btn:active {
+            transform: scale(0.98);
+        }
+
+        .saved-folder {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 12px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .saved-folder-name {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+            word-break: break-all;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .saved-folder-remove {
+            background: none;
+            border: none;
+            color: #e94560;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 5px 10px;
+        }
+
+        .no-saved {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 15px;
+        }
+
+        .hidden-input {
+            display: none;
+        }
+
+        .api-warning {
+            background: rgba(255, 200, 100, 0.1);
+            border: 1px solid rgba(255, 200, 100, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+            color: rgba(255, 200, 100, 0.9);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>🎲 PDF Rastgele Sayfa</h1>
+        <div class="info-text" id="info-text">Yükleniyor...</div>
+        <div class="pdf-count" id="pdf-count" style="display: none;">0 PDF</div>
+    </div>
+
+    <div class="pdf-container">
+        <div class="placeholder" id="placeholder">
+            <div class="placeholder-icon">📁</div>
+            <p>PDF klasörünüzü seçin</p>
+        </div>
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Yükleniyor...</p>
+        </div>
+        <canvas id="pdf-canvas" style="display: none;"></canvas>
+    </div>
+
+    <div class="controls">
+        <button class="folder-btn" id="folder-btn">📁</button>
+        <button class="random-btn" id="random-btn" disabled>🎲 Rastgele Sayfa</button>
+    </div>
+
+    <!-- Fallback file input -->
+    <input type="file" id="fallback-input" class="hidden-input" accept=".pdf" multiple webkitdirectory directory>
+    <input type="file" id="file-input" class="hidden-input" accept=".pdf" multiple>
+
+    <!-- Klasör Menü Modal -->
+    <div class="modal-overlay" id="folder-modal">
+        <div class="modal">
+            <h2>📁 Klasör Yönetimi</h2>
+            <div id="api-warning" class="api-warning" style="display: none;">
+                ⚠️ Tarayıcınız klasör hatırlamayı desteklemiyor.
+            </div>
+            <div id="saved-folders-list"></div>
+            <button class="modal-btn primary" id="select-new-folder">➕ Yeni Klasör Seç</button>
+            <button class="modal-btn secondary" id="select-files-btn" style="display: none;">📄 PDF Dosyaları
+                Seç</button>
+            <button class="modal-btn secondary" id="close-modal">✕ Kapat</button>
+        </div>
+    </div>
+
+    <!-- Hatırla Modal -->
+    <div class="modal-overlay" id="remember-modal">
+        <div class="modal">
+            <h2>💾 Klasörü Hatırla</h2>
+            <p style="color: rgba(255,255,255,0.7); margin-bottom: 15px; font-size: 0.9rem;">Bu klasörü kaydetmek ister
+                misiniz?</p>
+            <button class="modal-btn primary" id="remember-yes">✓ Evet, Hatırla</button>
+            <button class="modal-btn secondary" id="remember-no">Hayır</button>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let pdfFiles = [];
+        let savedFolders = [];
+        let db = null;
+
+        const DB_NAME = 'PDFRandomApp';
+        const STORE_NAME = 'folders';
+
+        // File System Access API desteği
+        const hasFileSystemAccess = 'showDirectoryPicker' in window;
+
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+        const randomBtn = document.getElementById('random-btn');
+        const folderBtn = document.getElementById('folder-btn');
+        const infoText = document.getElementById('info-text');
+        const pdfCount = document.getElementById('pdf-count');
+        const placeholder = document.getElementById('placeholder');
+        const loading = document.getElementById('loading');
+        const folderModal = document.getElementById('folder-modal');
+        const rememberModal = document.getElementById('remember-modal');
+        const fallbackInput = document.getElementById('fallback-input');
+        const fileInput = document.getElementById('file-input');
+        const apiWarning = document.getElementById('api-warning');
+        const selectFilesBtn = document.getElementById('select-files-btn');
+
+        // IndexedDB başlat
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+
+                request.onerror = () => reject(request.error);
+
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    if (!database.objectStoreNames.contains(STORE_NAME)) {
+                        database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                    }
+                };
+            });
+        }
+
+        // Klasörleri IndexedDB'den yükle
+        async function loadSavedFolders() {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+
+                request.onsuccess = () => resolve(request.result || []);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // Klasörü IndexedDB'ye kaydet
+        async function saveFolder(name, handle) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.add({ name, handle });
+
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // Klasörü IndexedDB'den sil
+        async function deleteFolder(id) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.delete(id);
+
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // API desteği yoksa uyarı göster
+        if (!hasFileSystemAccess) {
+            apiWarning.style.display = 'block';
+            selectFilesBtn.style.display = 'block';
+        }
+
+        // Uygulama başlatma
+        async function init() {
+            try {
+                await initDB();
+
+                if (hasFileSystemAccess) {
+                    savedFolders = await loadSavedFolders();
+
+                    if (savedFolders.length > 0) {
+                        infoText.textContent = 'Kayıtlı klasör yükleniyor...';
+                        await tryLoadSavedFolder(0);
+                    } else {
+                        infoText.textContent = 'Klasör seçin';
+                    }
+                } else {
+                    infoText.textContent = 'Klasör seçin';
+                }
+            } catch (e) {
+                console.error('Başlatma hatası:', e);
+                infoText.textContent = 'Klasör seçin';
+            }
+        }
+
+        async function tryLoadSavedFolder(index) {
+            if (index >= savedFolders.length) {
+                infoText.textContent = 'Klasör seçin';
+                return;
+            }
+
+            const folder = savedFolders[index];
+
+            try {
+                const handle = folder.handle;
+                if (!handle) {
+                    await tryLoadSavedFolder(index + 1);
+                    return;
+                }
+
+                // İzin kontrolü
+                let permission = await handle.queryPermission({ mode: 'read' });
+
+                if (permission !== 'granted') {
+                    permission = await handle.requestPermission({ mode: 'read' });
+                }
+
+                if (permission === 'granted') {
+                    await loadFolderFromHandle(handle, folder.name);
+                } else {
+                    await tryLoadSavedFolder(index + 1);
+                }
+            } catch (e) {
+                console.log('Klasör yüklenemedi:', e);
+                await tryLoadSavedFolder(index + 1);
+            }
+        }
+
+        async function loadFolderFromHandle(handle, name) {
+            pdfFiles = [];
+
+            try {
+                for await (const entry of handle.values()) {
+                    if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.pdf')) {
+                        const file = await entry.getFile();
+                        pdfFiles.push(file);
+                    }
+                }
+
+                if (pdfFiles.length > 0) {
+                    pdfCount.textContent = `${pdfFiles.length} PDF`;
+                    pdfCount.style.display = 'inline-block';
+                    randomBtn.disabled = false;
+                    infoText.textContent = name || handle.name;
+                    await selectRandomPage();
+                } else {
+                    infoText.textContent = 'Klasörde PDF bulunamadı';
+                }
+            } catch (e) {
+                console.error('Klasör okuma hatası:', e);
+                infoText.textContent = 'Klasör okunamadı';
+            }
+        }
+
+        function loadFilesFromInput(files) {
+            pdfFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+
+            if (pdfFiles.length > 0) {
+                pdfCount.textContent = `${pdfFiles.length} PDF`;
+                pdfCount.style.display = 'inline-block';
+                randomBtn.disabled = false;
+                infoText.textContent = 'PDF dosyaları yüklendi';
+                selectRandomPage();
+            } else {
+                infoText.textContent = 'PDF dosyası bulunamadı';
+            }
+        }
+
+        folderBtn.addEventListener('click', async () => {
+            savedFolders = await loadSavedFolders();
+            renderSavedFolders();
+            folderModal.classList.add('active');
+        });
+
+        document.getElementById('close-modal').addEventListener('click', () => {
+            folderModal.classList.remove('active');
+        });
+
+        document.getElementById('select-new-folder').addEventListener('click', async () => {
+            folderModal.classList.remove('active');
+            await selectNewFolder();
+        });
+
+        selectFilesBtn.addEventListener('click', () => {
+            folderModal.classList.remove('active');
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                loadFilesFromInput(e.target.files);
+            }
+        });
+
+        fallbackInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                loadFilesFromInput(e.target.files);
+            }
+        });
+
+        async function selectNewFolder() {
+            if (hasFileSystemAccess) {
+                try {
+                    const handle = await window.showDirectoryPicker();
+                    await loadFolderFromHandle(handle, handle.name);
+
+                    if (pdfFiles.length > 0) {
+                        savedFolders = await loadSavedFolders();
+                        const isAlreadySaved = savedFolders.some(f => f.name === handle.name);
+
+                        if (!isAlreadySaved) {
+                            rememberModal.classList.add('active');
+
+                            document.getElementById('remember-yes').onclick = async () => {
+                                await saveFolder(handle.name, handle);
+                                savedFolders = await loadSavedFolders();
+                                rememberModal.classList.remove('active');
+                            };
+
+                            document.getElementById('remember-no').onclick = () => {
+                                rememberModal.classList.remove('active');
+                            };
+                        }
+                    }
+                } catch (e) {
+                    if (e.name !== 'AbortError') {
+                        console.error('Klasör seçme hatası:', e);
+                        fallbackInput.click();
+                    }
+                }
+            } else {
+                fallbackInput.click();
+            }
+        }
+
+        function renderSavedFolders() {
+            const list = document.getElementById('saved-folders-list');
+
+            if (!hasFileSystemAccess || savedFolders.length === 0) {
+                list.innerHTML = '<div class="no-saved">Kayıtlı klasör yok</div>';
+                return;
+            }
+
+            list.innerHTML = savedFolders.map((folder, i) => `
+                <div class="saved-folder">
+                    <span class="saved-folder-name" data-index="${i}">📁 ${folder.name}</span>
+                    <button class="saved-folder-remove" data-id="${folder.id}">🗑️</button>
+                </div>
+            `).join('');
+
+            list.querySelectorAll('.saved-folder-name').forEach((el) => {
+                el.addEventListener('click', async () => {
+                    const i = parseInt(el.dataset.index);
+                    folderModal.classList.remove('active');
+                    await tryLoadSavedFolder(i);
+                });
+            });
+
+            list.querySelectorAll('.saved-folder-remove').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const id = parseInt(btn.dataset.id);
+                    await deleteFolder(id);
+                    savedFolders = await loadSavedFolders();
+                    renderSavedFolders();
+                });
+            });
+        }
+
+        randomBtn.addEventListener('click', selectRandomPage);
+
+        async function selectRandomPage() {
+            if (pdfFiles.length === 0) return;
+
+            placeholder.style.display = 'none';
+            canvas.style.display = 'none';
+            loading.classList.add('active');
+
+            try {
+                const randomFile = pdfFiles[Math.floor(Math.random() * pdfFiles.length)];
+                const arrayBuffer = await randomFile.arrayBuffer();
+                const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const totalPages = pdfDoc.numPages;
+                const randomPageNum = Math.floor(Math.random() * totalPages) + 1;
+                const page = await pdfDoc.getPage(randomPageNum);
+
+                const containerWidth = document.querySelector('.pdf-container').clientWidth - 20;
+                const viewport = page.getViewport({ scale: 1 });
+                const scale = Math.min(containerWidth / viewport.width, 2.5);
+                const scaledViewport = page.getViewport({ scale });
+
+                canvas.height = scaledViewport.height;
+                canvas.width = scaledViewport.width;
+
+                await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+
+                let pdfName = randomFile.name.replace('.pdf', '');
+                if (pdfName.length > 20) pdfName = pdfName.substring(0, 17) + '...';
+                infoText.textContent = `${pdfName} | ${randomPageNum}/${totalPages}`;
+
+                loading.classList.remove('active');
+                canvas.style.display = 'block';
+            } catch (error) {
+                console.error('PDF yükleme hatası:', error);
+                infoText.textContent = 'Hata: PDF yüklenemedi';
+                loading.classList.remove('active');
+                placeholder.style.display = 'block';
+            }
+        }
+
+        // Başlat
+        init();
+    </script>
+</body>
+
+</html>
