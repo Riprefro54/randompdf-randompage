@@ -502,6 +502,12 @@
         let currentPdfName = null;
         let currentPageNum = null;
 
+        // Performance Tracking Variables
+        let currentPdfDoc = null;
+        let renderTask = null;
+        let currentFileUrl = null;
+        let currentFolderName = null;
+
         // IndexedDB başlat
         async function initDB() {
             return new Promise((resolve, reject) => {
@@ -585,6 +591,7 @@
                     id,
                     pdfName,
                     pageNum,
+                    folderName: currentFolderName, // Store folder context
                     timestamp: Date.now()
                 });
 
@@ -682,7 +689,22 @@
         }
 
         async function loadFolderFromHandle(handle, name) {
+            placeholder.style.display = 'none';
+            loading.classList.add('active');
+            infoText.textContent = 'Klasör taranıyor...';
+            currentFolderName = name || handle.name;
+
             pdfFiles = [];
+
+            // Clean up previous session
+            if (currentPdfDoc) {
+                await currentPdfDoc.destroy();
+                currentPdfDoc = null;
+            }
+            if (currentFileUrl) {
+                URL.revokeObjectURL(currentFileUrl);
+                currentFileUrl = null;
+            }
 
             try {
                 for await (const entry of handle.values()) {
@@ -712,6 +734,7 @@
         }
 
         function loadFilesFromInput(files) {
+            currentFolderName = null; // Reset folder context
             pdfFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
 
             if (pdfFiles.length > 0) {
@@ -839,7 +862,7 @@
 
             list.innerHTML = favorites.map(fav => `
                 <div class="saved-folder" style="cursor: pointer;">
-                    <span class="saved-folder-name" onclick="loadFavorite('${fav.pdfName}', ${fav.pageNum})">
+                    <span class="saved-folder-name" onclick="loadFavorite('${fav.pdfName}', ${fav.pageNum}, '${fav.folderName || ''}')">
                         ★ ${fav.pdfName.replace('.pdf', '')} <small>(S. ${fav.pageNum})</small>
                     </span>
                     <button class="saved-folder-remove" onclick="deleteFavoriteItem('${fav.pdfName}', ${fav.pageNum})">🗑️</button>
@@ -847,13 +870,43 @@
             `).join('');
         }
 
-        window.loadFavorite = async (pdfName, pageNum) => {
+        window.loadFavorite = async (pdfName, pageNum, folderName) => {
             menuModal.classList.remove('active');
 
-            // Check if file exists in current folder
-            const file = pdfFiles.find(f => f.name === pdfName);
+            // 1. Try to find file in current list
+            let file = pdfFiles.find(f => f.name === pdfName);
+
+            // 2. If not found, try to load folder
+            if (!file && folderName) {
+                // Find folder handle
+                const folder = savedFolders.find(f => f.name === folderName);
+
+                if (folder) {
+                    if (confirm(`"${pdfName}" şu an yüklü değil. "${folderName}" klasöründen yüklemeyi denemek ister misiniz?`)) {
+                        try {
+                            // Request permission if needed (might fail without user gesture, but worth a try)
+                            const permission = await folder.handle.queryPermission({ mode: 'read' });
+                            if (permission !== 'granted') {
+                                await folder.handle.requestPermission({ mode: 'read' });
+                            }
+
+                            await loadFolderFromHandle(folder.handle, folder.name);
+
+                            // Retry finding file
+                            file = pdfFiles.find(f => f.name === pdfName);
+                        } catch (e) {
+                            console.error("Auto-load failed", e);
+                        }
+                    }
+                }
+            }
+
             if (!file) {
-                alert('Bu dosya şu anki klasörde bulunamadı. Lütfen ilgili klasörü seçin.');
+                if (folderName) {
+                    alert(`Dosya "${folderName}" klasöründe bulunamadı veya klasör erişimi reddedildi.`);
+                } else {
+                    alert('Bu dosya şu anki klasörde bulunamadı. Lütfen ilgili klasörü seçin.');
+                }
                 return;
             }
 
@@ -861,16 +914,31 @@
             loading.classList.add('active');
 
             try {
-                const arrayBuffer = await file.arrayBuffer();
+                // CLEANUP: Destroy previous doc
+                if (currentPdfDoc) {
+                    await currentPdfDoc.destroy();
+                    currentPdfDoc = null;
+                }
+
+                // CLEANUP: Revoke previous URL
+                if (currentFileUrl) {
+                    URL.revokeObjectURL(currentFileUrl);
+                    currentFileUrl = null;
+                }
+
+                // OPTIMIZATION: Use Blob URL
+                currentFileUrl = URL.createObjectURL(file);
 
                 const loadingTask = pdfjsLib.getDocument({
-                    data: arrayBuffer,
+                    url: currentFileUrl,
                     cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
                     cMapPacked: true,
                     standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/'
                 });
 
                 const pdfDoc = await loadingTask.promise;
+                currentPdfDoc = pdfDoc;
+
                 await renderPage(pdfDoc, pageNum);
 
                 // Update state
@@ -974,6 +1042,16 @@
         randomBtn.addEventListener('click', selectRandomPage);
 
         async function renderPage(pdfDoc, pageNum) {
+            // Cancel previous render if exists
+            if (renderTask) {
+                try {
+                    await renderTask.cancel();
+                } catch (e) {
+                    // Ignore cancel error
+                }
+                renderTask = null;
+            }
+
             const page = await pdfDoc.getPage(pageNum);
             const containerWidth = document.querySelector('.pdf-container').clientWidth - 20;
             const viewport = page.getViewport({ scale: 1 });
@@ -981,8 +1059,10 @@
             // Calculate scale to fit container width, cap at 2.5x base scale
             const scale = Math.min(containerWidth / viewport.width, 2.5);
 
-            // Handle High DPI
-            const outputScale = window.devicePixelRatio || 1;
+            // Handle High DPI, but CAP IT at 2.0 to prevent 4K+ render lag
+            let outputScale = window.devicePixelRatio || 1;
+            if (outputScale > 2) outputScale = 2; // Performance Cap
+
             const scaledViewport = page.getViewport({ scale: scale });
 
             canvas.width = Math.floor(scaledViewport.width * outputScale);
@@ -994,14 +1074,62 @@
                 ? [outputScale, 0, 0, outputScale, 0, 0]
                 : null;
 
-            await page.render({
+            // Store render task for cancellation
+            renderTask = page.render({
                 canvasContext: ctx,
                 transform: transform,
                 viewport: scaledViewport
-            }).promise;
+            });
+
+            await renderTask.promise;
+            renderTask = null;
 
             // Ensure canvas is visible
             canvas.style.display = 'block';
+        }
+
+        async function loadFolderFromHandle(handle, name) {
+            placeholder.style.display = 'none';
+            loading.classList.add('active');
+            infoText.textContent = 'Klasör taranıyor...';
+            currentFolderName = name || handle.name;
+
+            pdfFiles = [];
+            // Clean up previous session
+            if (currentPdfDoc) {
+                await currentPdfDoc.destroy();
+                currentPdfDoc = null;
+            }
+            if (currentFileUrl) {
+                URL.revokeObjectURL(currentFileUrl);
+                currentFileUrl = null;
+            }
+
+            try {
+                for await (const entry of handle.values()) {
+                    if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.pdf')) {
+                        const file = await entry.getFile();
+                        pdfFiles.push(file);
+                    }
+                }
+
+                if (pdfFiles.length > 0) {
+                    pdfCount.textContent = `${pdfFiles.length} PDF`;
+                    pdfCount.style.display = 'inline-block';
+                    randomBtn.disabled = false;
+                    infoText.textContent = name || handle.name;
+                    await selectRandomPage();
+                } else {
+                    infoText.textContent = 'Klasörde PDF bulunamadı';
+                }
+            } catch (e) {
+                console.error('Klasör okuma hatası:', e);
+                infoText.textContent = 'Hata: ' + e.message;
+                alert('Klasör okuma hatası: ' + e.message + '\nLütfen "PDF Dosyaları Seç" seçeneğini deneyin.');
+                // Show file select button as alternative
+                selectFilesBtn.style.display = 'block';
+                menuModal.classList.add('active');
+            }
         }
 
         async function selectRandomPage() {
@@ -1011,17 +1139,33 @@
             loading.classList.add('active');
 
             try {
+                // CLEANUP: Destroy previous doc to free memory
+                if (currentPdfDoc) {
+                    await currentPdfDoc.destroy();
+                    currentPdfDoc = null;
+                }
+
+                // CLEANUP: Revoke previous object URL
+                if (currentFileUrl) {
+                    URL.revokeObjectURL(currentFileUrl);
+                    currentFileUrl = null;
+                }
+
                 const randomFile = pdfFiles[Math.floor(Math.random() * pdfFiles.length)];
-                const arrayBuffer = await randomFile.arrayBuffer();
+
+                // OPTIMIZATION: Use Blob URL instead of ArrayBuffer
+                currentFileUrl = URL.createObjectURL(randomFile);
 
                 const loadingTask = pdfjsLib.getDocument({
-                    data: arrayBuffer,
+                    url: currentFileUrl, // Use URL
                     cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
                     cMapPacked: true,
                     standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/'
                 });
 
                 const pdfDoc = await loadingTask.promise;
+                currentPdfDoc = pdfDoc; // Track for cleanup
+
                 const totalPages = pdfDoc.numPages;
                 const randomPageNum = Math.floor(Math.random() * totalPages) + 1;
 
