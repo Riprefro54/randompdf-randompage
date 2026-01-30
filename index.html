@@ -341,6 +341,20 @@
         </div>
     </div>
 
+    <!-- Debug Console -->
+    <div id="debug-console"
+        style="display: none; position: fixed; bottom: 0; left: 0; right: 0; height: 150px; background: rgba(0,0,0,0.9); color: #0f0; font-family: monospace; font-size: 10px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 1px solid #333;">
+        <div
+            style="position: sticky; top: 0; background: #000; padding-bottom: 5px; border-bottom: 1px solid #333; display: flex; justify-content: space-between;">
+            <span>DEBUG LOG</span>
+            <button onclick="document.getElementById('debug-console').style.display='none'"
+                style="background: #333; color: white; border: none; padding: 2px 8px;">✕</button>
+        </div>
+        <div id="debug-content"></div>
+    </div>
+    <button id="toggle-debug"
+        style="position: fixed; bottom: 10px; right: 10px; opacity: 0.3; background: #000; color: white; border: none; padding: 5px; font-size: 10px; z-index: 9998;">🐞</button>
+
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -353,6 +367,43 @@
 
         // File System Access API desteği
         const hasFileSystemAccess = 'showDirectoryPicker' in window;
+
+        // Debug Console Logic
+        const debugContent = document.getElementById('debug-content');
+        const debugConsole = document.getElementById('debug-console');
+
+        document.getElementById('toggle-debug').addEventListener('click', () => {
+            debugConsole.style.display = debugConsole.style.display === 'none' ? 'block' : 'none';
+        });
+
+        function logToDebug(msg, type = 'log') {
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? '#ff5555' : '#55ff55';
+            div.style.marginBottom = '2px';
+            div.style.borderBottom = '1px solid #222';
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            debugContent.insertBefore(div, debugContent.firstChild);
+        }
+
+        // Override console methods to capture logs
+        const originalLog = console.log;
+        const originalError = console.error;
+
+        console.log = function (...args) {
+            originalLog.apply(console, args);
+            logToDebug(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '));
+        };
+
+        console.error = function (...args) {
+            originalError.apply(console, args);
+            logToDebug(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'error');
+        };
+
+        // Catch global errors
+        window.onerror = function (msg, url, lineNo, columnNo, error) {
+            logToDebug(`Global Error: ${msg} (${lineNo}:${columnNo})`, 'error');
+            return false;
+        };
 
         const canvas = document.getElementById('pdf-canvas');
         const ctx = canvas.getContext('2d');
