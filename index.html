@@ -353,7 +353,7 @@
         <div id="debug-content"></div>
     </div>
     <button id="toggle-debug"
-        style="position: fixed; bottom: 10px; right: 10px; opacity: 0.3; background: #000; color: white; border: none; padding: 5px; font-size: 10px; z-index: 9998;">🐞</button>
+        style="position: fixed; bottom: 80px; right: 20px; opacity: 1; background: rgba(220, 20, 60, 0.9); color: white; border: 2px solid white; padding: 12px; font-size: 24px; z-index: 10000; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">🐞</button>
 
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -561,6 +561,7 @@
                 }
             } catch (e) {
                 console.error('Klasör okuma hatası:', e);
+                logToDebug(`Klasör okuma hatası detayı: ${e.name} - ${e.message}`, 'error');
                 infoText.textContent = 'Hata: ' + e.message;
                 alert('Klasör okuma hatası: ' + e.message + '\nLütfen "PDF Dosyaları Seç" seçeneğini deneyin.');
                 // Show file select button as alternative
@@ -642,6 +643,7 @@
                 } catch (e) {
                     if (e.name !== 'AbortError') {
                         console.error('Klasör seçme hatası:', e);
+                        logToDebug(`Klasör seçme hatası detayı: ${e.name} - ${e.message}`, 'error');
                         fallbackInput.click();
                     }
                 }
