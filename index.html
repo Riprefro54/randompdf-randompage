@@ -231,6 +231,7 @@
             font-size: 0.9rem;
             color: rgba(255, 255, 255, 0.8);
             word-break: break-all;
+            cursor: pointer;
         }
 
         .saved-folder-remove {
@@ -247,6 +248,20 @@
             font-size: 0.9rem;
             text-align: center;
             padding: 15px;
+        }
+
+        .hidden-input {
+            display: none;
+        }
+
+        .api-warning {
+            background: rgba(255, 200, 100, 0.1);
+            border: 1px solid rgba(255, 200, 100, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+            color: rgba(255, 200, 100, 0.9);
         }
     </style>
 </head>
@@ -275,12 +290,21 @@
         <button class="random-btn" id="random-btn" disabled>🎲 Rastgele Sayfa</button>
     </div>
 
+    <!-- Fallback file input -->
+    <input type="file" id="fallback-input" class="hidden-input" accept=".pdf" multiple webkitdirectory directory>
+    <input type="file" id="file-input" class="hidden-input" accept=".pdf" multiple>
+
     <!-- Klasör Menü Modal -->
     <div class="modal-overlay" id="folder-modal">
         <div class="modal">
             <h2>📁 Klasör Yönetimi</h2>
+            <div id="api-warning" class="api-warning" style="display: none;">
+                ⚠️ Tarayıcınız klasör hatırlamayı desteklemiyor. PDF dosyalarını manuel seçebilirsiniz.
+            </div>
             <div id="saved-folders-list"></div>
             <button class="modal-btn primary" id="select-new-folder">➕ Yeni Klasör Seç</button>
+            <button class="modal-btn secondary" id="select-files-btn" style="display: none;">📄 PDF Dosyaları
+                Seç</button>
             <button class="modal-btn secondary" id="close-modal">✕ Kapat</button>
         </div>
     </div>
@@ -301,7 +325,10 @@
 
         let pdfFiles = [];
         let currentDirHandle = null;
-        let savedFolders = JSON.parse(localStorage.getItem('savedFolders') || '[]');
+        let savedFolders = [];
+
+        // File System Access API desteğini kontrol et
+        const hasFileSystemAccess = 'showDirectoryPicker' in window;
 
         const canvas = document.getElementById('pdf-canvas');
         const ctx = canvas.getContext('2d');
@@ -313,10 +340,27 @@
         const loading = document.getElementById('loading');
         const folderModal = document.getElementById('folder-modal');
         const rememberModal = document.getElementById('remember-modal');
+        const fallbackInput = document.getElementById('fallback-input');
+        const fileInput = document.getElementById('file-input');
+        const apiWarning = document.getElementById('api-warning');
+        const selectFilesBtn = document.getElementById('select-files-btn');
+
+        // Kayıtlı klasörleri yükle
+        try {
+            savedFolders = JSON.parse(localStorage.getItem('savedFolders') || '[]');
+        } catch (e) {
+            savedFolders = [];
+        }
+
+        // API desteği yoksa uyarı göster
+        if (!hasFileSystemAccess) {
+            apiWarning.style.display = 'block';
+            selectFilesBtn.style.display = 'block';
+        }
 
         // Sayfa yüklendiğinde kayıtlı klasörü dene
         window.addEventListener('load', async () => {
-            if (savedFolders.length > 0) {
+            if (hasFileSystemAccess && savedFolders.length > 0) {
                 infoText.textContent = 'Kayıtlı klasör yükleniyor...';
                 await tryLoadSavedFolder(0);
             }
@@ -330,6 +374,11 @@
 
             try {
                 const handle = savedFolders[index].handle;
+                if (!handle) {
+                    await tryLoadSavedFolder(index + 1);
+                    return;
+                }
+
                 const permission = await handle.queryPermission({ mode: 'read' });
 
                 if (permission === 'granted') {
@@ -352,21 +401,40 @@
             currentDirHandle = handle;
             pdfFiles = [];
 
-            for await (const entry of handle.values()) {
-                if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.pdf')) {
-                    const file = await entry.getFile();
-                    pdfFiles.push(file);
+            try {
+                for await (const entry of handle.values()) {
+                    if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.pdf')) {
+                        const file = await entry.getFile();
+                        pdfFiles.push(file);
+                    }
                 }
+
+                if (pdfFiles.length > 0) {
+                    pdfCount.textContent = `${pdfFiles.length} PDF`;
+                    pdfCount.style.display = 'inline-block';
+                    randomBtn.disabled = false;
+                    infoText.textContent = `${handle.name}`;
+                    await selectRandomPage();
+                } else {
+                    infoText.textContent = 'Klasörde PDF bulunamadı';
+                }
+            } catch (e) {
+                console.error('Klasör okuma hatası:', e);
+                infoText.textContent = 'Klasör okunamadı';
             }
+        }
+
+        function loadFilesFromInput(files) {
+            pdfFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
 
             if (pdfFiles.length > 0) {
                 pdfCount.textContent = `${pdfFiles.length} PDF`;
                 pdfCount.style.display = 'inline-block';
                 randomBtn.disabled = false;
-                infoText.textContent = `${handle.name}`;
-                await selectRandomPage();
+                infoText.textContent = 'PDF dosyaları yüklendi';
+                selectRandomPage();
             } else {
-                infoText.textContent = 'Klasörde PDF bulunamadı';
+                infoText.textContent = 'PDF dosyası bulunamadı';
             }
         }
 
@@ -384,54 +452,82 @@
             await selectNewFolder();
         });
 
+        selectFilesBtn.addEventListener('click', () => {
+            folderModal.classList.remove('active');
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                loadFilesFromInput(e.target.files);
+            }
+        });
+
+        fallbackInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                loadFilesFromInput(e.target.files);
+            }
+        });
+
         async function selectNewFolder() {
-            try {
-                const handle = await window.showDirectoryPicker();
-                await loadFolderFromHandle(handle);
+            if (hasFileSystemAccess) {
+                try {
+                    const handle = await window.showDirectoryPicker();
+                    await loadFolderFromHandle(handle);
 
-                // Hatırla mı sor
-                if (pdfFiles.length > 0) {
-                    const isAlreadySaved = savedFolders.some(f => f.name === handle.name);
-                    if (!isAlreadySaved) {
-                        rememberModal.classList.add('active');
+                    // Hatırla mı sor
+                    if (pdfFiles.length > 0) {
+                        const isAlreadySaved = savedFolders.some(f => f.name === handle.name);
+                        if (!isAlreadySaved) {
+                            rememberModal.classList.add('active');
 
-                        document.getElementById('remember-yes').onclick = () => {
-                            savedFolders.push({ name: handle.name, handle: handle });
-                            localStorage.setItem('savedFolders', JSON.stringify(savedFolders));
-                            rememberModal.classList.remove('active');
-                        };
+                            document.getElementById('remember-yes').onclick = () => {
+                                savedFolders.push({ name: handle.name, handle: handle });
+                                // Not: FileSystemDirectoryHandle localStorage'a tam kaydedilemez
+                                // ama session boyunca çalışır
+                                try {
+                                    localStorage.setItem('savedFolders', JSON.stringify(savedFolders.map(f => ({ name: f.name }))));
+                                } catch (e) { }
+                                rememberModal.classList.remove('active');
+                            };
 
-                        document.getElementById('remember-no').onclick = () => {
-                            rememberModal.classList.remove('active');
-                        };
+                            document.getElementById('remember-no').onclick = () => {
+                                rememberModal.classList.remove('active');
+                            };
+                        }
+                    }
+                } catch (e) {
+                    if (e.name !== 'AbortError') {
+                        console.error('Klasör seçme hatası:', e);
+                        // Fallback: webkitdirectory input
+                        fallbackInput.click();
                     }
                 }
-            } catch (e) {
-                if (e.name !== 'AbortError') {
-                    console.error('Klasör seçme hatası:', e);
-                }
+            } else {
+                // Fallback: webkitdirectory input
+                fallbackInput.click();
             }
         }
 
         function renderSavedFolders() {
             const list = document.getElementById('saved-folders-list');
 
-            if (savedFolders.length === 0) {
+            if (!hasFileSystemAccess || savedFolders.length === 0) {
                 list.innerHTML = '<div class="no-saved">Kayıtlı klasör yok</div>';
                 return;
             }
 
             list.innerHTML = savedFolders.map((folder, i) => `
                 <div class="saved-folder">
-                    <span class="saved-folder-name">📁 ${folder.name}</span>
+                    <span class="saved-folder-name" data-index="${i}">📁 ${folder.name}</span>
                     <button class="saved-folder-remove" data-index="${i}">🗑️</button>
                 </div>
             `).join('');
 
             // Klasöre tıkla
-            list.querySelectorAll('.saved-folder-name').forEach((el, i) => {
-                el.style.cursor = 'pointer';
+            list.querySelectorAll('.saved-folder-name').forEach((el) => {
                 el.addEventListener('click', async () => {
+                    const i = parseInt(el.dataset.index);
                     folderModal.classList.remove('active');
                     await tryLoadSavedFolder(i);
                 });
@@ -443,7 +539,9 @@
                     e.stopPropagation();
                     const index = parseInt(btn.dataset.index);
                     savedFolders.splice(index, 1);
-                    localStorage.setItem('savedFolders', JSON.stringify(savedFolders));
+                    try {
+                        localStorage.setItem('savedFolders', JSON.stringify(savedFolders.map(f => ({ name: f.name }))));
+                    } catch (e) { }
                     renderSavedFolders();
                 });
             });
