@@ -232,6 +232,7 @@
             color: rgba(255, 255, 255, 0.8);
             word-break: break-all;
             cursor: pointer;
+            flex: 1;
         }
 
         .saved-folder-remove {
@@ -269,7 +270,7 @@
 <body>
     <div class="header">
         <h1>🎲 PDF Rastgele Sayfa</h1>
-        <div class="info-text" id="info-text">Klasör seçin</div>
+        <div class="info-text" id="info-text">Yükleniyor...</div>
         <div class="pdf-count" id="pdf-count" style="display: none;">0 PDF</div>
     </div>
 
@@ -299,7 +300,7 @@
         <div class="modal">
             <h2>📁 Klasör Yönetimi</h2>
             <div id="api-warning" class="api-warning" style="display: none;">
-                ⚠️ Tarayıcınız klasör hatırlamayı desteklemiyor. PDF dosyalarını manuel seçebilirsiniz.
+                ⚠️ Tarayıcınız klasör hatırlamayı desteklemiyor.
             </div>
             <div id="saved-folders-list"></div>
             <button class="modal-btn primary" id="select-new-folder">➕ Yeni Klasör Seç</button>
@@ -324,10 +325,13 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
         let pdfFiles = [];
-        let currentDirHandle = null;
         let savedFolders = [];
+        let db = null;
 
-        // File System Access API desteğini kontrol et
+        const DB_NAME = 'PDFRandomApp';
+        const STORE_NAME = 'folders';
+
+        // File System Access API desteği
         const hasFileSystemAccess = 'showDirectoryPicker' in window;
 
         const canvas = document.getElementById('pdf-canvas');
@@ -345,11 +349,61 @@
         const apiWarning = document.getElementById('api-warning');
         const selectFilesBtn = document.getElementById('select-files-btn');
 
-        // Kayıtlı klasörleri yükle
-        try {
-            savedFolders = JSON.parse(localStorage.getItem('savedFolders') || '[]');
-        } catch (e) {
-            savedFolders = [];
+        // IndexedDB başlat
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+
+                request.onerror = () => reject(request.error);
+
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    if (!database.objectStoreNames.contains(STORE_NAME)) {
+                        database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                    }
+                };
+            });
+        }
+
+        // Klasörleri IndexedDB'den yükle
+        async function loadSavedFolders() {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+
+                request.onsuccess = () => resolve(request.result || []);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // Klasörü IndexedDB'ye kaydet
+        async function saveFolder(name, handle) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.add({ name, handle });
+
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // Klasörü IndexedDB'den sil
+        async function deleteFolder(id) {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.delete(id);
+
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
         }
 
         // API desteği yoksa uyarı göster
@@ -358,13 +412,28 @@
             selectFilesBtn.style.display = 'block';
         }
 
-        // Sayfa yüklendiğinde kayıtlı klasörü dene
-        window.addEventListener('load', async () => {
-            if (hasFileSystemAccess && savedFolders.length > 0) {
-                infoText.textContent = 'Kayıtlı klasör yükleniyor...';
-                await tryLoadSavedFolder(0);
+        // Uygulama başlatma
+        async function init() {
+            try {
+                await initDB();
+
+                if (hasFileSystemAccess) {
+                    savedFolders = await loadSavedFolders();
+
+                    if (savedFolders.length > 0) {
+                        infoText.textContent = 'Kayıtlı klasör yükleniyor...';
+                        await tryLoadSavedFolder(0);
+                    } else {
+                        infoText.textContent = 'Klasör seçin';
+                    }
+                } else {
+                    infoText.textContent = 'Klasör seçin';
+                }
+            } catch (e) {
+                console.error('Başlatma hatası:', e);
+                infoText.textContent = 'Klasör seçin';
             }
-        });
+        }
 
         async function tryLoadSavedFolder(index) {
             if (index >= savedFolders.length) {
@@ -372,33 +441,34 @@
                 return;
             }
 
+            const folder = savedFolders[index];
+
             try {
-                const handle = savedFolders[index].handle;
+                const handle = folder.handle;
                 if (!handle) {
                     await tryLoadSavedFolder(index + 1);
                     return;
                 }
 
-                const permission = await handle.queryPermission({ mode: 'read' });
+                // İzin kontrolü
+                let permission = await handle.queryPermission({ mode: 'read' });
+
+                if (permission !== 'granted') {
+                    permission = await handle.requestPermission({ mode: 'read' });
+                }
 
                 if (permission === 'granted') {
-                    await loadFolderFromHandle(handle);
+                    await loadFolderFromHandle(handle, folder.name);
                 } else {
-                    const newPermission = await handle.requestPermission({ mode: 'read' });
-                    if (newPermission === 'granted') {
-                        await loadFolderFromHandle(handle);
-                    } else {
-                        await tryLoadSavedFolder(index + 1);
-                    }
+                    await tryLoadSavedFolder(index + 1);
                 }
             } catch (e) {
-                console.log('Kayıtlı klasör yüklenemedi:', e);
+                console.log('Klasör yüklenemedi:', e);
                 await tryLoadSavedFolder(index + 1);
             }
         }
 
-        async function loadFolderFromHandle(handle) {
-            currentDirHandle = handle;
+        async function loadFolderFromHandle(handle, name) {
             pdfFiles = [];
 
             try {
@@ -413,7 +483,7 @@
                     pdfCount.textContent = `${pdfFiles.length} PDF`;
                     pdfCount.style.display = 'inline-block';
                     randomBtn.disabled = false;
-                    infoText.textContent = `${handle.name}`;
+                    infoText.textContent = name || handle.name;
                     await selectRandomPage();
                 } else {
                     infoText.textContent = 'Klasörde PDF bulunamadı';
@@ -438,7 +508,8 @@
             }
         }
 
-        folderBtn.addEventListener('click', () => {
+        folderBtn.addEventListener('click', async () => {
+            savedFolders = await loadSavedFolders();
             renderSavedFolders();
             folderModal.classList.add('active');
         });
@@ -473,21 +544,18 @@
             if (hasFileSystemAccess) {
                 try {
                     const handle = await window.showDirectoryPicker();
-                    await loadFolderFromHandle(handle);
+                    await loadFolderFromHandle(handle, handle.name);
 
-                    // Hatırla mı sor
                     if (pdfFiles.length > 0) {
+                        savedFolders = await loadSavedFolders();
                         const isAlreadySaved = savedFolders.some(f => f.name === handle.name);
+
                         if (!isAlreadySaved) {
                             rememberModal.classList.add('active');
 
-                            document.getElementById('remember-yes').onclick = () => {
-                                savedFolders.push({ name: handle.name, handle: handle });
-                                // Not: FileSystemDirectoryHandle localStorage'a tam kaydedilemez
-                                // ama session boyunca çalışır
-                                try {
-                                    localStorage.setItem('savedFolders', JSON.stringify(savedFolders.map(f => ({ name: f.name }))));
-                                } catch (e) { }
+                            document.getElementById('remember-yes').onclick = async () => {
+                                await saveFolder(handle.name, handle);
+                                savedFolders = await loadSavedFolders();
                                 rememberModal.classList.remove('active');
                             };
 
@@ -499,12 +567,10 @@
                 } catch (e) {
                     if (e.name !== 'AbortError') {
                         console.error('Klasör seçme hatası:', e);
-                        // Fallback: webkitdirectory input
                         fallbackInput.click();
                     }
                 }
             } else {
-                // Fallback: webkitdirectory input
                 fallbackInput.click();
             }
         }
@@ -520,11 +586,10 @@
             list.innerHTML = savedFolders.map((folder, i) => `
                 <div class="saved-folder">
                     <span class="saved-folder-name" data-index="${i}">📁 ${folder.name}</span>
-                    <button class="saved-folder-remove" data-index="${i}">🗑️</button>
+                    <button class="saved-folder-remove" data-id="${folder.id}">🗑️</button>
                 </div>
             `).join('');
 
-            // Klasöre tıkla
             list.querySelectorAll('.saved-folder-name').forEach((el) => {
                 el.addEventListener('click', async () => {
                     const i = parseInt(el.dataset.index);
@@ -533,15 +598,12 @@
                 });
             });
 
-            // Silme butonları
             list.querySelectorAll('.saved-folder-remove').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    const index = parseInt(btn.dataset.index);
-                    savedFolders.splice(index, 1);
-                    try {
-                        localStorage.setItem('savedFolders', JSON.stringify(savedFolders.map(f => ({ name: f.name }))));
-                    } catch (e) { }
+                    const id = parseInt(btn.dataset.id);
+                    await deleteFolder(id);
+                    savedFolders = await loadSavedFolders();
                     renderSavedFolders();
                 });
             });
@@ -587,6 +649,9 @@
                 placeholder.style.display = 'block';
             }
         }
+
+        // Başlat
+        init();
     </script>
 </body>
 
