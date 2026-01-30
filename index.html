@@ -325,8 +325,7 @@
             </div>
             <div id="saved-folders-list"></div>
             <button class="modal-btn primary" id="select-new-folder">➕ Yeni Klasör Seç</button>
-            <button class="modal-btn secondary" id="select-files-btn" style="display: none;">📄 PDF Dosyaları
-                Seç</button>
+            <button class="modal-btn secondary" id="select-files-btn">📄 PDF Dosyaları Seç</button>
             <button class="modal-btn secondary" id="close-modal">✕ Kapat</button>
         </div>
     </div>
@@ -511,7 +510,11 @@
                 }
             } catch (e) {
                 console.error('Klasör okuma hatası:', e);
-                infoText.textContent = 'Klasör okunamadı';
+                infoText.textContent = 'Hata: ' + e.message;
+                alert('Klasör okuma hatası: ' + e.message + '\nLütfen "PDF Dosyaları Seç" seçeneğini deneyin.');
+                // Show file select button as alternative
+                selectFilesBtn.style.display = 'block';
+                folderModal.classList.add('active');
             }
         }
 
