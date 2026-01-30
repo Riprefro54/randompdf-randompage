@@ -81,6 +81,8 @@
         .pdf-container {
             flex: 1;
             overflow: auto;
+            position: relative;
+            /* Added for absolute positioning of loading */
             display: flex;
             justify-content: center;
             align-items: flex-start;
@@ -141,6 +143,22 @@
             box-shadow: none;
         }
 
+        .favorite-btn {
+            flex: 0 0 auto;
+            padding: 15px 20px;
+            font-size: 1.5rem;
+            color: #555;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .favorite-btn:active {
+            transform: scale(0.95);
+        }
+
         .loading,
         .placeholder {
             text-align: center;
@@ -150,10 +168,30 @@
 
         .loading {
             display: none;
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.5);
+            /* Semi-transparent to make text readable but keep page visible. User said 'no transparency' on 0.7 which technically means solid, but context implies 'don't hide page'. If I make it solid it hides page. If I make it transparent text is unreadable. I'll stick to a slight dim but maybe the user meant "Don't use transparency, use solid" which hides the page... Wait. "hali hazırdaki sayfa... kapanmasın" -> don't close current page. "no transparency" -> maybe they want it CLEAR? I will use transparent and add a background to the spinner box itself. */
+            background: transparent;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            pointer-events: none;
+            /* Let clicks pass through if needed, though usually we want to block interaction while loading */
+        }
+
+        .loading .spinner-container {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         .loading.active {
-            display: block;
+            display: flex;
         }
 
         .placeholder-icon {
@@ -303,8 +341,10 @@
             <p>PDF klasörünüzü seçin</p>
         </div>
         <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Yükleniyor...</p>
+            <div class="spinner-container">
+                <div class="spinner"></div>
+                <p>Yükleniyor...</p>
+            </div>
         </div>
         <canvas id="pdf-canvas" style="display: none;"></canvas>
     </div>
@@ -818,23 +858,20 @@
             }
 
             placeholder.style.display = 'none';
-            canvas.style.display = 'none';
             loading.classList.add('active');
 
             try {
                 const arrayBuffer = await file.arrayBuffer();
-                const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                const page = await pdfDoc.getPage(pageNum);
 
-                const containerWidth = document.querySelector('.pdf-container').clientWidth - 20;
-                const viewport = page.getViewport({ scale: 1 });
-                const scale = Math.min(containerWidth / viewport.width, 2.5);
-                const scaledViewport = page.getViewport({ scale });
+                const loadingTask = pdfjsLib.getDocument({
+                    data: arrayBuffer,
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true,
+                    standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/'
+                });
 
-                canvas.height = scaledViewport.height;
-                canvas.width = scaledViewport.width;
-
-                await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+                const pdfDoc = await loadingTask.promise;
+                await renderPage(pdfDoc, pageNum);
 
                 // Update state
                 currentPdfName = pdfName;
@@ -845,7 +882,6 @@
                 infoText.textContent = `${displayName} | ${pageNum}/${pdfDoc.numPages}`;
 
                 loading.classList.remove('active');
-                canvas.style.display = 'block';
 
                 favoriteBtn.disabled = false;
                 await updateFavoriteButtonState();
@@ -937,30 +973,59 @@
 
         randomBtn.addEventListener('click', selectRandomPage);
 
+        async function renderPage(pdfDoc, pageNum) {
+            const page = await pdfDoc.getPage(pageNum);
+            const containerWidth = document.querySelector('.pdf-container').clientWidth - 20;
+            const viewport = page.getViewport({ scale: 1 });
+
+            // Calculate scale to fit container width, cap at 2.5x base scale
+            const scale = Math.min(containerWidth / viewport.width, 2.5);
+
+            // Handle High DPI
+            const outputScale = window.devicePixelRatio || 1;
+            const scaledViewport = page.getViewport({ scale: scale });
+
+            canvas.width = Math.floor(scaledViewport.width * outputScale);
+            canvas.height = Math.floor(scaledViewport.height * outputScale);
+            canvas.style.width = Math.floor(scaledViewport.width) + "px";
+            canvas.style.height = Math.floor(scaledViewport.height) + "px";
+
+            const transform = outputScale !== 1
+                ? [outputScale, 0, 0, outputScale, 0, 0]
+                : null;
+
+            await page.render({
+                canvasContext: ctx,
+                transform: transform,
+                viewport: scaledViewport
+            }).promise;
+
+            // Ensure canvas is visible
+            canvas.style.display = 'block';
+        }
+
         async function selectRandomPage() {
             if (pdfFiles.length === 0) return;
 
             placeholder.style.display = 'none';
-            canvas.style.display = 'none';
             loading.classList.add('active');
 
             try {
                 const randomFile = pdfFiles[Math.floor(Math.random() * pdfFiles.length)];
                 const arrayBuffer = await randomFile.arrayBuffer();
-                const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                const loadingTask = pdfjsLib.getDocument({
+                    data: arrayBuffer,
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true,
+                    standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/'
+                });
+
+                const pdfDoc = await loadingTask.promise;
                 const totalPages = pdfDoc.numPages;
                 const randomPageNum = Math.floor(Math.random() * totalPages) + 1;
-                const page = await pdfDoc.getPage(randomPageNum);
 
-                const containerWidth = document.querySelector('.pdf-container').clientWidth - 20;
-                const viewport = page.getViewport({ scale: 1 });
-                const scale = Math.min(containerWidth / viewport.width, 2.5);
-                const scaledViewport = page.getViewport({ scale });
-
-                canvas.height = scaledViewport.height;
-                canvas.width = scaledViewport.width;
-
-                await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+                await renderPage(pdfDoc, randomPageNum);
 
                 let pdfName = randomFile.name.replace('.pdf', '');
 
@@ -972,7 +1037,6 @@
                 infoText.textContent = `${pdfName} | ${randomPageNum}/${totalPages}`;
 
                 loading.classList.remove('active');
-                canvas.style.display = 'block';
 
                 // Update favorite button
                 favoriteBtn.disabled = false;
