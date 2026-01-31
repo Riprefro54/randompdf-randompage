@@ -18,25 +18,42 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// Fetch event - serve from cache, fall back to network
+// Fetch event - Network-First for main page, Cache-First for assets
 self.addEventListener('fetch', (event) => {
+    // For navigation requests (like index.html), try the network first
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    // Cache the new version
+                    const responseToCache = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseToCache);
+                    });
+                    return response;
+                })
+                .catch(() => {
+                    // If network fails, return cached version
+                    return caches.match(event.request);
+                })
+        );
+        return;
+    }
+
+    // For other assets, use Cache-First with Network fallback
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
-                // Cache hit - return response
                 if (response) {
                     return response;
                 }
                 return fetch(event.request).then(
                     (response) => {
-                        // Check if we received a valid response
                         if (!response || response.status !== 200 || response.type !== 'basic') {
                             return response;
                         }
 
-                        // Clone the response
                         const responseToCache = response.clone();
-
                         caches.open(CACHE_NAME)
                             .then((cache) => {
                                 cache.put(event.request, responseToCache);
