@@ -167,7 +167,10 @@ body {
     inset: 0;
     z-index: 10;
     background: transparent;
-    justify-content: center;
+    justify-content: flex-start;
+    /* Move to top */
+    padding-top: 20px;
+    /* Spacing from top */
     align-items: center;
     flex-direction: column;
     pointer-events: none;
@@ -178,12 +181,17 @@ body.has-pdf #placeholder {
 }
 
 .loading .spinner-container {
-    background: rgba(0, 0, 0, 0.8);
-    padding: 20px;
-    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 8px 16px;
+    /* Compact padding */
+    border-radius: 30px;
+    /* Pill shape */
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    /* Side by side */
     align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .loading.active {
@@ -203,6 +211,20 @@ body.has-pdf #placeholder {
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin: 0 auto 10px;
+}
+
+/* Specific smaller spinner for the top loading indicator */
+.loading .spinner {
+    width: 20px;
+    height: 20px;
+    border-width: 2px;
+    margin: 0;
+}
+
+.loading p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: white;
 }
 
 @keyframes spin {
