@@ -1,0 +1,337 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+}
+
+.header {
+    flex-shrink: 0;
+    padding: 12px 15px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #e94560;
+    margin-bottom: 4px;
+}
+
+.info-text {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.pdf-count {
+    background: rgba(233, 69, 96, 0.2);
+    color: #e94560;
+    padding: 3px 10px;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    display: inline-block;
+    margin-top: 5px;
+}
+
+.pdf-container {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 10px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.pdf-canvas {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.controls {
+    flex-shrink: 0;
+    padding: 12px 15px;
+    background: rgba(0, 0, 0, 0.4);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    gap: 10px;
+}
+
+.folder-btn {
+    flex: 0 0 auto;
+    padding: 15px 20px;
+    font-size: 1.5rem;
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+}
+
+.folder-btn:active {
+    transform: scale(0.95);
+}
+
+.random-btn {
+    flex: 1;
+    padding: 15px 20px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(135deg, #e94560 0%, #f27121 100%);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(233, 69, 96, 0.4);
+}
+
+.random-btn:active {
+    transform: scale(0.97);
+}
+
+.random-btn:disabled {
+    background: #444;
+    box-shadow: none;
+}
+
+.nav-btn {
+    flex: 0 0 auto;
+    padding: 15px;
+    font-size: 1.2rem;
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-btn:active {
+    transform: scale(0.95);
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.favorite-btn {
+    flex: 0 0 auto;
+    padding: 15px 20px;
+    font-size: 1.5rem;
+    color: #555;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.favorite-btn:active {
+    transform: scale(0.95);
+}
+
+.loading,
+.placeholder {
+    text-align: center;
+    padding: 30px 20px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.loading {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: transparent;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    pointer-events: none;
+}
+
+body.has-pdf #placeholder {
+    display: none !important;
+}
+
+.loading .spinner-container {
+    background: rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.loading.active {
+    display: flex;
+}
+
+.placeholder-icon {
+    font-size: 3rem;
+    margin-bottom: 10px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #e94560;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal {
+    background: #1e2746;
+    border-radius: 16px;
+    padding: 20px;
+    max-width: 350px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal h2 {
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    color: #e94560;
+}
+
+.modal-btn {
+    width: 100%;
+    padding: 14px;
+    margin: 8px 0;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+.modal-btn.primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.modal-btn.danger {
+    background: #e94560;
+    color: white;
+}
+
+.modal-btn.secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.modal-btn:active {
+    transform: scale(0.98);
+}
+
+.saved-folder {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 12px;
+    margin: 10px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.saved-folder-name {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+    word-break: break-all;
+    cursor: pointer;
+    flex: 1;
+}
+
+.saved-folder-remove {
+    background: none;
+    border: none;
+    color: #e94560;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 5px 10px;
+}
+
+.no-saved {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 15px;
+}
+
+.hidden-input {
+    display: none;
+}
+
+.api-warning {
+    background: rgba(255, 200, 100, 0.1);
+    border: 1px solid rgba(255, 200, 100, 0.3);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    font-size: 0.8rem;
+    color: rgba(255, 200, 100, 0.9);
+}
+
+#global-preloader {
+    position: fixed;
+    inset: 0;
+    background: #1a1a2e;
+    z-index: 99999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    transition: opacity 0.5s ease-out;
+}
+
+#global-preloader.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
