@@ -144,6 +144,33 @@
             box-shadow: none;
         }
 
+        .nav-btn {
+            flex: 0 0 auto;
+            padding: 15px;
+            font-size: 1.2rem;
+            color: white;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            /* Centering icon */
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-btn:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .favorite-btn {
             flex: 0 0 auto;
             padding: 15px 20px;
@@ -383,10 +410,12 @@
     </div>
 
     <div class="controls">
+        <button class="nav-btn" id="prev-btn" disabled>❮</button>
         <button class="folder-btn" id="folder-btn">📁</button>
-        <button class="random-btn" id="random-btn" disabled>🔄 Rastgele Sayfa</button>
+        <button class="random-btn" id="random-btn" disabled>🎲 Rastgele Sayfa</button>
         <button class="favorite-btn" id="favorite-btn" disabled
             style="flex: 0 0 auto; padding: 15px; font-size: 1.5rem; background: #333; border: none; border-radius: 14px; color: #555; cursor: pointer;">★</button>
+        <button class="nav-btn" id="next-btn" disabled>❯</button>
     </div>
 
     <!-- Fallback file input -->
@@ -522,6 +551,8 @@
         const randomBtn = document.getElementById('random-btn');
         const folderBtn = document.getElementById('folder-btn');
         const favoriteBtn = document.getElementById('favorite-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
         const menuBtn = document.getElementById('menu-btn');
         const infoText = document.getElementById('info-text');
         const pdfCount = document.getElementById('pdf-count');
@@ -1172,6 +1203,43 @@
 
             // Update active index
             activeCanvasIndex = targetCanvasIndex;
+
+            // Update Nav Buttons
+            updateNavButtons(pageNum, pdfDoc.numPages);
+        }
+
+        function updateNavButtons(current, total) {
+            if (!prevBtn || !nextBtn) return;
+            prevBtn.disabled = current <= 1;
+            nextBtn.disabled = current >= total;
+        }
+
+        // Navigation Logic
+        prevBtn.addEventListener('click', () => changePage(-1));
+        nextBtn.addEventListener('click', () => changePage(1));
+
+        async function changePage(offset) {
+            if (!currentPdfDoc || !currentPageNum) return;
+
+            const newPage = currentPageNum + offset;
+            if (newPage >= 1 && newPage <= currentPdfDoc.numPages) {
+                loading.classList.add('active'); // Show loading for feedback
+                try {
+                    await renderPage(currentPdfDoc, newPage);
+                    currentPageNum = newPage;
+
+                    // Update info text
+                    let displayName = currentPdfName.replace('.pdf', '');
+                    if (displayName.length > 20) displayName = displayName.substring(0, 17) + '...';
+                    infoText.textContent = `${displayName} | ${currentPageNum}/${currentPdfDoc.numPages}`;
+
+                    loading.classList.remove('active');
+                    await updateFavoriteButtonState(); // Update fav state for new page
+                } catch (e) {
+                    console.error("Navigation error", e);
+                    loading.classList.remove('active');
+                }
+            }
         }
 
         async function loadFolderFromHandle(handle, name) {
@@ -1211,8 +1279,18 @@
                 }
             } catch (e) {
                 console.error('Klasör okuma hatası:', e);
-                infoText.textContent = 'Hata: ' + e.message;
-                alert('Klasör okuma hatası: ' + e.message + '\nLütfen "PDF Dosyaları Seç" seçeneğini deneyin.');
+
+                let errorMsg = 'Hata: ' + e.message;
+
+                // Specific handling for NotFoundError (Stale handle)
+                if (e.name === 'NotFoundError' || e.message.includes('not be found')) {
+                    errorMsg = 'Klasör bulunamadı veya taşınmış/silinmiş.';
+                    alert('Klasör okuma hatası: Klasör bulunamadı.\nLütfen listeden silip tekrar ekleyin.');
+                } else {
+                    alert('Klasör okuma hatası: ' + e.message + '\nLütfen "PDF Dosyaları Seç" seçeneğini deneyin.');
+                }
+
+                infoText.textContent = errorMsg;
                 // Show file select button as alternative
                 selectFilesBtn.style.display = 'block';
                 menuModal.classList.add('active');
