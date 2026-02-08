@@ -55,7 +55,7 @@ const hasFileSystemAccess = 'showDirectoryPicker' in window;
 // Translations
 const TRANSLATIONS = {
     en: {
-        appTitle: "🎲 PDF Random Page",
+        appTitle: "PDF Random Page",
         placeholder: "Select PDF Folder",
         loading: "Loading...",
         randomBtn: "🎲 Random Page",

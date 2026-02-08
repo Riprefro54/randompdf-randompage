@@ -8,6 +8,9 @@
     <meta name="description"
         content="PDF dosyalarınızdan rastgele bir sayfa seçip görüntüleyen basit ve kullanışlı bir web uygulaması.">
     <meta name="theme-color" content="#1a1a2e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="icon" href="./icon-192.png">
@@ -15,19 +18,21 @@
     <link rel="manifest" href="./manifest.json">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
+        // Unregister any existing service workers to disable caching
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                    })
-                    .catch(err => {
-                        console.log('ServiceWorker registration failed: ', err);
-                    });
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let registration of registrations) {
+                    registration.unregister();
+                    console.log('Service Worker unregistered');
+                }
             });
         }
     </script>
-    <link rel="stylesheet" href="./styles.css">
+    <script>
+        // Load CSS and JS with cache-busting timestamp
+        const timestamp = Date.now();
+        document.write('<link rel="stylesheet" href="./styles.css?v=' + timestamp + '">');
+    </script>
 </head>
 
 <body>
@@ -174,7 +179,10 @@
     <!-- Debug Toggle is now inside the menu -->
 
 
-    <script src="./app.js"></script>
+    <script>
+        // Load app.js with cache-busting timestamp
+        document.write('<script src="./app.js?v=' + Date.now() + '"><\/script>');
+    </script>
 </body>
 
 </html>
