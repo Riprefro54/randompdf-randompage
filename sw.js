@@ -20,6 +20,8 @@ self.addEventListener('install', (event) => {
 
 // Fetch event - Network-First for main page, Cache-First for assets
 self.addEventListener('fetch', (event) => {
+    const url = new URL(event.request.url);
+
     // For navigation requests (like index.html), try the network first
     if (event.request.mode === 'navigate') {
         event.respondWith(
@@ -40,7 +42,26 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // For other assets, use Cache-First with Network fallback
+    // For JS/CSS files, use Network-First to always get latest updates
+    if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    const responseToCache = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseToCache);
+                    });
+                    return response;
+                })
+                .catch(() => {
+                    // Fallback to cache if network fails
+                    return caches.match(event.request);
+                })
+        );
+        return;
+    }
+
+    // For other assets (images, etc.), use Cache-First with Network fallback
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
