@@ -84,7 +84,17 @@ const TRANSLATIONS = {
         errorFolderTitle: "Folder Not Found",
         errorFolderMsg: "Folder not found or moved/deleted.",
         errorReadMsg: "Folder read error",
-        errorLoadPdf: "Error: Could not load PDF"
+        errorLoadPdf: "Error: Could not load PDF",
+        pageInputPlaceholder: "Jump to page",
+        goBtn: "Go",
+        zoomInTitle: "Zoom In",
+        zoomOutTitle: "Zoom Out",
+        fitWidthTitle: "Fit to Width",
+        fitPageTitle: "Fit to Page",
+        firstPageTitle: "First Page",
+        lastPageTitle: "Last Page",
+        prevPageTitle: "Previous Page",
+        nextPageTitle: "Next Page"
     },
     tr: {
         appTitle: "🎲 PDF Rastgele Sayfa",
@@ -116,7 +126,17 @@ const TRANSLATIONS = {
         errorFolderTitle: "Klasör Bulunamadı",
         errorFolderMsg: "Klasör bulunamadı veya taşınmış/silinmiş.",
         errorReadMsg: "Klasör okuma hatası",
-        errorLoadPdf: "Hata: PDF yüklenemedi"
+        errorLoadPdf: "Hata: PDF yüklenemedi",
+        pageInputPlaceholder: "Sayfaya git",
+        goBtn: "Git",
+        zoomInTitle: "Yakınlaştır",
+        zoomOutTitle: "Uzaklaştır",
+        fitWidthTitle: "Genişliğe Sığdır",
+        fitPageTitle: "Sayfaya Sığdır",
+        firstPageTitle: "İlk Sayfa",
+        lastPageTitle: "Son Sayfa",
+        prevPageTitle: "Önceki Sayfa",
+        nextPageTitle: "Sonraki Sayfa"
     }
 };
 
@@ -155,6 +175,18 @@ function setLanguage(lang) {
     updateText('remember-no', t.rememberNo);
     updateText('api-warning', t.apiWarning);
 
+    // Update new controls
+    if (goPageBtn) goPageBtn.textContent = t.goBtn;
+    if (pageInput && !currentPdfDoc) pageInput.placeholder = t.pageInputPlaceholder;
+    if (zoomInBtn) zoomInBtn.title = t.zoomInTitle;
+    if (zoomOutBtn) zoomOutBtn.title = t.zoomOutTitle;
+    if (fitWidthBtn) fitWidthBtn.title = t.fitWidthTitle;
+    if (fitPageBtn) fitPageBtn.title = t.fitPageTitle;
+    if (firstBtn) firstBtn.title = t.firstPageTitle;
+    if (lastBtn) lastBtn.title = t.lastPageTitle;
+    if (prevBtn) prevBtn.title = t.prevPageTitle;
+    if (nextBtn) nextBtn.title = t.nextPageTitle;
+
     // Re-render lists to update empty messages
     const filesModal = document.getElementById('files-modal');
     if (filesModal && filesModal.classList.contains('active')) {
@@ -175,7 +207,16 @@ const folderBtn = document.getElementById('folder-btn');
 const favoriteBtn = document.getElementById('favorite-btn');
 const prevBtn = document.getElementById('prev-btn');
 const nextBtn = document.getElementById('next-btn');
+const firstBtn = document.getElementById('first-btn');
+const lastBtn = document.getElementById('last-btn');
 const menuBtn = document.getElementById('menu-btn');
+const pageInput = document.getElementById('page-input');
+const goPageBtn = document.getElementById('go-page-btn');
+const zoomInBtn = document.getElementById('zoom-in-btn');
+const zoomOutBtn = document.getElementById('zoom-out-btn');
+const fitWidthBtn = document.getElementById('fit-width-btn');
+const fitPageBtn = document.getElementById('fit-page-btn');
+const zoomDisplay = document.getElementById('zoom-display');
 const infoText = document.getElementById('info-text');
 const pdfCount = document.getElementById('pdf-count');
 const placeholder = document.getElementById('placeholder');
@@ -201,6 +242,8 @@ const contentFolders = document.getElementById('folders-content');
 
 let currentPdfName = null;
 let currentPageNum = null;
+let currentZoom = 1.0;
+let zoomMode = 'auto'; // 'auto', 'width', 'page', or 'custom'
 
 // Performance Tracking Variables
 let currentPdfDoc = null;
@@ -785,10 +828,23 @@ async function renderPage(pdfDoc, pageNum) {
 
     const page = await pdfDoc.getPage(pageNum);
     const containerWidth = document.querySelector('.pdf-container').clientWidth - 20;
+    const containerHeight = document.querySelector('.pdf-container').clientHeight - 20;
     const viewport = page.getViewport({ scale: 1 });
 
-    // Calculate scale to fit container width, cap at 2.5x base scale
-    const scale = Math.min(containerWidth / viewport.width, 2.5);
+    // Calculate scale based on zoom mode
+    let scale;
+    if (zoomMode === 'width') {
+        scale = containerWidth / viewport.width;
+    } else if (zoomMode === 'page') {
+        const scaleWidth = containerWidth / viewport.width;
+        const scaleHeight = containerHeight / viewport.height;
+        scale = Math.min(scaleWidth, scaleHeight);
+    } else if (zoomMode === 'custom') {
+        scale = (containerWidth / viewport.width) * currentZoom;
+    } else {
+        // auto mode
+        scale = Math.min(containerWidth / viewport.width, 2.5);
+    }
 
     // Handle High DPI, but CAP IT at 2.0 to prevent 4K+ render lag
     let outputScale = window.devicePixelRatio || 1;
@@ -827,17 +883,127 @@ async function renderPage(pdfDoc, pageNum) {
 
     // Update Nav Buttons
     updateNavButtons(pageNum, pdfDoc.numPages);
+
+    // Update zoom display
+    if (zoomMode === 'custom') {
+        updateZoomDisplay();
+    } else {
+        // For auto/width/page modes, show the actual scale
+        const actualZoom = scale / (containerWidth / viewport.width);
+        currentZoom = actualZoom;
+        updateZoomDisplay();
+    }
 }
 
 function updateNavButtons(current, total) {
     if (!prevBtn || !nextBtn) return;
     prevBtn.disabled = current <= 1;
     nextBtn.disabled = current >= total;
+    firstBtn.disabled = current <= 1;
+    lastBtn.disabled = current >= total;
+
+    // Enable page input controls when PDF is loaded
+    if (total > 0) {
+        pageInput.disabled = false;
+        goPageBtn.disabled = false;
+        pageInput.setAttribute('max', total);
+        pageInput.placeholder = `Page ${current}`;
+
+        // Enable zoom controls
+        zoomInBtn.disabled = false;
+        zoomOutBtn.disabled = false;
+        fitWidthBtn.disabled = false;
+        fitPageBtn.disabled = false;
+    }
 }
 
 // Navigation Logic
 prevBtn.addEventListener('click', () => changePage(-1));
 nextBtn.addEventListener('click', () => changePage(1));
+firstBtn.addEventListener('click', () => goToPage(1));
+lastBtn.addEventListener('click', () => {
+    if (currentPdfDoc) goToPage(currentPdfDoc.numPages);
+});
+
+// Page Input Logic
+goPageBtn.addEventListener('click', () => {
+    const pageNum = parseInt(pageInput.value);
+    if (pageNum && currentPdfDoc && pageNum >= 1 && pageNum <= currentPdfDoc.numPages) {
+        goToPage(pageNum);
+    }
+});
+
+pageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        goPageBtn.click();
+    }
+});
+
+// Zoom Controls
+zoomInBtn.addEventListener('click', () => adjustZoom(0.25));
+zoomOutBtn.addEventListener('click', () => adjustZoom(-0.25));
+fitWidthBtn.addEventListener('click', () => setZoomMode('width'));
+fitPageBtn.addEventListener('click', () => setZoomMode('page'));
+
+function adjustZoom(delta) {
+    if (!currentPdfDoc) return;
+    zoomMode = 'custom';
+    currentZoom = Math.max(0.5, Math.min(3.0, currentZoom + delta));
+    updateZoomDisplay();
+    rerenderCurrentPage();
+}
+
+function setZoomMode(mode) {
+    if (!currentPdfDoc) return;
+    zoomMode = mode;
+    if (mode === 'auto') {
+        currentZoom = 1.0;
+    }
+    rerenderCurrentPage();
+}
+
+function updateZoomDisplay() {
+    const percentage = Math.round(currentZoom * 100);
+    zoomDisplay.textContent = `${percentage}%`;
+}
+
+async function goToPage(pageNum) {
+    if (!currentPdfDoc || !pageNum) return;
+    if (pageNum < 1 || pageNum > currentPdfDoc.numPages) return;
+
+    loading.classList.add('active');
+    try {
+        await renderPage(currentPdfDoc, pageNum);
+        currentPageNum = pageNum;
+
+        // Update info text
+        let displayName = currentPdfName.replace('.pdf', '');
+        if (displayName.length > 20) displayName = displayName.substring(0, 17) + '...';
+        infoText.textContent = `${displayName} | ${currentPageNum}/${currentPdfDoc.numPages}`;
+
+        // Update page input
+        pageInput.value = '';
+        pageInput.placeholder = `Page ${pageNum}`;
+
+        loading.classList.remove('active');
+        await updateFavoriteButtonState();
+    } catch (e) {
+        console.error("Go to page error", e);
+        loading.classList.remove('active');
+    }
+}
+
+async function rerenderCurrentPage() {
+    if (!currentPdfDoc || !currentPageNum) return;
+    loading.classList.add('active');
+    try {
+        await renderPage(currentPdfDoc, currentPageNum);
+        loading.classList.remove('active');
+    } catch (e) {
+        console.error("Rerender error", e);
+        loading.classList.remove('active');
+    }
+}
 
 async function changePage(offset) {
     if (!currentPdfDoc || !currentPageNum) return;
@@ -853,6 +1019,10 @@ async function changePage(offset) {
             let displayName = currentPdfName.replace('.pdf', '');
             if (displayName.length > 20) displayName = displayName.substring(0, 17) + '...';
             infoText.textContent = `${displayName} | ${currentPageNum}/${currentPdfDoc.numPages}`;
+
+            // Update page input
+            pageInput.value = '';
+            pageInput.placeholder = `Page ${newPage}`;
 
             loading.classList.remove('active');
             await updateFavoriteButtonState(); // Update fav state for new page

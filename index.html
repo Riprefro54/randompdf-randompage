@@ -59,13 +59,28 @@
         <canvas id="pdf-canvas-2" class="pdf-canvas" style="display: none;"></canvas>
     </div>
 
+    <!-- Zoom Controls -->
+    <div class="zoom-controls">
+        <button class="zoom-btn" id="zoom-out-btn" disabled title="Zoom Out">−</button>
+        <span class="zoom-display" id="zoom-display">100%</span>
+        <button class="zoom-btn" id="zoom-in-btn" disabled title="Zoom In">+</button>
+        <button class="zoom-btn" id="fit-width-btn" disabled title="Fit to Width">↔</button>
+        <button class="zoom-btn" id="fit-page-btn" disabled title="Fit to Page">⛶</button>
+    </div>
+
     <div class="controls">
-        <button class="nav-btn" id="prev-btn" disabled>❮</button>
+        <button class="nav-btn" id="first-btn" disabled title="First Page">⏮</button>
+        <button class="nav-btn" id="prev-btn" disabled title="Previous Page">❮</button>
+        <div class="page-input-container">
+            <input type="number" id="page-input" class="page-input" min="1" disabled placeholder="Sayfaya git">
+            <button class="go-page-btn" id="go-page-btn" disabled>Git</button>
+        </div>
+        <button class="nav-btn" id="next-btn" disabled title="Next Page">❯</button>
+        <button class="nav-btn" id="last-btn" disabled title="Last Page">⏭</button>
         <button class="folder-btn" id="folder-btn">📁</button>
         <button class="random-btn" id="random-btn" disabled>🎲 Rastgele Sayfa</button>
         <button class="favorite-btn" id="favorite-btn" disabled
             style="flex: 0 0 auto; padding: 15px; font-size: 1.5rem; background: #333; border: none; border-radius: 14px; color: #555; cursor: pointer;">★</button>
-        <button class="nav-btn" id="next-btn" disabled>❯</button>
     </div>
 
     <!-- Fallback file input -->

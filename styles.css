@@ -66,6 +66,49 @@ body {
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
+.zoom-controls {
+    flex-shrink: 0;
+    padding: 8px 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+}
+
+.zoom-btn {
+    padding: 8px 12px;
+    font-size: 1rem;
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.zoom-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.zoom-btn:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+.zoom-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.zoom-display {
+    min-width: 50px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9rem;
+    font-family: monospace;
+}
+
 .controls {
     flex-shrink: 0;
     padding: 12px 15px;
@@ -73,7 +116,62 @@ body {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
 }
+
+.page-input-container {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    flex: 0 1 auto;
+}
+
+.page-input {
+    width: 80px;
+    padding: 8px;
+    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    text-align: center;
+}
+
+.page-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.page-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+}
+
+.go-page-btn {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: white;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.go-page-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.go-page-btn:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+.go-page-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
 
 .folder-btn {
     flex: 0 0 auto;
