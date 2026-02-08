@@ -596,126 +596,94 @@ body.has-pdf #placeholder {
         justify-content: center;
     }
 
-    /* Main Controls - Grid Layout for better organization */
+    /* Main Controls - Flexbox with order for mobile */
     .controls {
         padding: 10px 8px;
         gap: 8px;
-        display: grid;
-        grid-template-columns: 1fr 2fr 1fr;
-        /* Better proportion: Side buttons - Center - Side buttons */
-        grid-template-rows: auto auto auto;
-        align-items: stretch;
-        /* Ensure full height */
-        justify-items: stretch;
-        /* Ensure full width */
-    }
-
-    /* Common Button Styles for Grid */
-    .folder-btn,
-    .random-btn,
-    .favorite-btn,
-    .nav-btn,
-    .go-page-btn {
-        width: 100%;
         display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        margin: 0;
+        flex-wrap: wrap;
+        align-items: stretch;
+        justify-content: space-between;
     }
 
-    /* Row 1: Folder, Random, Favorite */
+    /* Row 1: Folder, Random, Favorite - using order to move them first */
     .folder-btn {
-        grid-column: 1;
-        grid-row: 1;
-        font-size: 1.4rem;
-        padding: 10px;
-        height: 60px;
-        /* Fixed height */
+        order: -3;
+        /* Move to beginning */
+        flex: 0 0 calc(20% - 5px);
+        /* 20% width */
+        font-size: 1.3rem;
+        padding: 8px;
+        height: 56px;
         border-radius: 12px;
+        min-width: 50px;
     }
 
     .random-btn {
-        grid-column: 2;
-        grid-row: 1;
-        font-size: 1rem;
-        padding: 10px;
-        height: 60px;
-        /* Fixed height */
+        order: -2;
+        /* Second */
+        flex: 1 1 55%;
+        /* Takes remaining space */
+        font-size: 0.95rem;
+        padding: 8px;
+        height: 56px;
         border-radius: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .favorite-btn {
-        grid-column: 3;
-        grid-row: 1;
-        font-size: 1.5rem;
-        padding: 10px;
-        height: 60px;
-        /* Fixed height */
+        order: -1;
+        /* Third */
+        flex: 0 0 calc(20% - 5px);
+        /* 20% width */
+        font-size: 1.4rem;
+        padding: 8px;
+        height: 56px;
         border-radius: 12px;
+        min-width: 50px;
     }
 
-    /* Row 2: First, Previous, Page Input, Next, Last */
-    #first-btn {
-        grid-column: 1;
-        grid-row: 2;
-        font-size: 1rem;
-        height: 50px;
+    /* Navigation buttons - normal order (appear after above 3) */
+    #first-btn,
+    #prev-btn,
+    #next-btn,
+    #last-btn {
+        order: 0;
+        /* Default order */
+        flex: 0 0 44px;
+        height: 48px;
+        font-size: 1.1rem;
         border-radius: 10px;
-    }
-
-    #prev-btn {
-        grid-column: 1;
-        grid-row: 3;
-        font-size: 1.2rem;
-        height: 50px;
-        border-radius: 10px;
+        padding: 0;
     }
 
     .page-input-container {
-        grid-column: 2;
-        grid-row: 2 / 4;
+        order: 0;
+        flex: 1 1 auto;
+        min-width: 120px;
         display: flex;
-        flex-direction: column;
         gap: 6px;
-        /* Ensure it fills the space */
-        height: 100%;
+        align-items: center;
     }
 
-    #next-btn {
-        grid-column: 3;
-        grid-row: 3;
-        font-size: 1.2rem;
-        height: 50px;
-        border-radius: 10px;
-    }
-
-    #last-btn {
-        grid-column: 3;
-        grid-row: 2;
-        font-size: 1rem;
-        height: 50px;
-        border-radius: 10px;
-    }
-
-    /* Page Input - Stacked vertically */
+    /* Page Input - full width within container */
     .page-input {
-        width: 100%;
+        flex: 1;
         font-size: 1rem;
         /* prevent iOS zoom on focus */
         padding: 0 10px;
-        height: 50px;
-        /* Match button height */
+        height: 48px;
         border-radius: 10px;
         text-align: center;
     }
 
     .go-page-btn {
-        width: 100%;
-        padding: 0 10px;
-        font-size: 0.95rem;
-        height: 50px;
-        /* Match button height */
+        flex: 0 0 50px;
+        padding: 0;
+        font-size: 0.9rem;
+        height: 48px;
         border-radius: 10px;
     }
 
