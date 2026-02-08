@@ -1213,6 +1213,16 @@ async function loadFolderFromHandle(handle, name) {
     }
 
     try {
+        // Request permission before accessing folder contents
+        let permission = await handle.queryPermission({ mode: 'read' });
+        if (permission !== 'granted') {
+            permission = await handle.requestPermission({ mode: 'read' });
+        }
+
+        if (permission !== 'granted') {
+            throw new Error('Klasör erişim izni verilmedi');
+        }
+
         for await (const entry of handle.values()) {
             if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.pdf')) {
                 const file = await entry.getFile();
