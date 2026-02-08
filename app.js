@@ -103,7 +103,7 @@ const TRANSLATIONS = {
         noResults: "No results found"
     },
     tr: {
-        appTitle: "🎲 PDF Rastgele Sayfa",
+        appTitle: "PDF Rastgele Sayfa",
         placeholder: "PDF klasörünüzü seçin",
         loading: "Yükleniyor...",
         randomBtn: "🎲 Rastgele Sayfa",
