@@ -522,6 +522,26 @@ body.has-pdf #placeholder {
 
 @media (max-width: 768px) {
 
+    /* Global Mobile Reset for Interactive Elements */
+    button,
+    input,
+    select,
+    textarea {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        -webkit-tap-highlight-color: transparent;
+        font-family: inherit;
+        border-radius: 0;
+        /* Reset iOS rounded corners */
+        outline: none;
+    }
+
+    button:focus,
+    input:focus {
+        outline: none;
+    }
+
     /* General mobile optimizations */
     body {
         font-size: 14px;
@@ -544,18 +564,36 @@ body.has-pdf #placeholder {
     .zoom-controls {
         padding: 12px 8px;
         gap: 12px;
+        /* Ensure alignment */
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .zoom-btn {
-        padding: 12px 16px;
+        padding: 0;
+        /* Clear padding to center content */
         font-size: 1.2rem;
+        width: 44px;
+        /* Fixed width */
+        height: 44px;
+        /* Fixed height */
         min-width: 44px;
         min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        /* Consistent radius */
     }
 
     .zoom-display {
         min-width: 60px;
         font-size: 1rem;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     /* Main Controls - Grid Layout for better organization */
@@ -563,8 +601,27 @@ body.has-pdf #placeholder {
         padding: 10px 8px;
         gap: 8px;
         display: grid;
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: 1fr 2fr 1fr;
+        /* Better proportion: Side buttons - Center - Side buttons */
         grid-template-rows: auto auto auto;
+        align-items: stretch;
+        /* Ensure full height */
+        justify-items: stretch;
+        /* Ensure full width */
+    }
+
+    /* Common Button Styles for Grid */
+    .folder-btn,
+    .random-btn,
+    .favorite-btn,
+    .nav-btn,
+    .go-page-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        margin: 0;
     }
 
     /* Row 1: Folder, Random, Favorite */
@@ -572,45 +629,47 @@ body.has-pdf #placeholder {
         grid-column: 1;
         grid-row: 1;
         font-size: 1.4rem;
-        padding: 14px 18px;
-        min-width: 60px;
-        min-height: 50px;
+        padding: 10px;
+        height: 60px;
+        /* Fixed height */
+        border-radius: 12px;
     }
 
     .random-btn {
         grid-column: 2;
         grid-row: 1;
         font-size: 1rem;
-        padding: 14px 12px;
-        min-height: 50px;
+        padding: 10px;
+        height: 60px;
+        /* Fixed height */
+        border-radius: 12px;
     }
 
     .favorite-btn {
         grid-column: 3;
         grid-row: 1;
         font-size: 1.5rem;
-        padding: 14px 18px;
-        min-width: 60px;
-        min-height: 50px;
+        padding: 10px;
+        height: 60px;
+        /* Fixed height */
+        border-radius: 12px;
     }
 
     /* Row 2: First, Previous, Page Input, Next, Last */
     #first-btn {
         grid-column: 1;
         grid-row: 2;
-        min-width: 44px;
-        min-height: 44px;
         font-size: 1rem;
-        padding: 10px;
+        height: 50px;
+        border-radius: 10px;
     }
 
     #prev-btn {
         grid-column: 1;
         grid-row: 3;
-        min-width: 44px;
-        min-height: 44px;
         font-size: 1.2rem;
-        padding: 10px;
+        height: 50px;
+        border-radius: 10px;
     }
 
     .page-input-container {
@@ -619,104 +678,105 @@ body.has-pdf #placeholder {
         display: flex;
         flex-direction: column;
         gap: 6px;
-        align-items: stretch;
+        /* Ensure it fills the space */
+        height: 100%;
     }
 
     #next-btn {
         grid-column: 3;
         grid-row: 3;
-        min-width: 44px;
-        min-height: 44px;
         font-size: 1.2rem;
-        padding: 10px;
+        height: 50px;
+        border-radius: 10px;
     }
 
     #last-btn {
         grid-column: 3;
         grid-row: 2;
-        min-width: 44px;
-        min-height: 44px;
         font-size: 1rem;
-        padding: 10px;
+        height: 50px;
+        border-radius: 10px;
     }
 
     /* Page Input - Stacked vertically */
     .page-input {
         width: 100%;
-        font-size: 0.95rem;
-        padding: 10px 8px;
-        min-height: 44px;
+        font-size: 1rem;
+        /* prevent iOS zoom on focus */
+        padding: 0 10px;
+        height: 50px;
+        /* Match button height */
+        border-radius: 10px;
+        text-align: center;
     }
 
     .go-page-btn {
         width: 100%;
-        padding: 10px;
+        padding: 0 10px;
         font-size: 0.95rem;
-        min-height: 44px;
-    }
-
-    /* Navigation buttons - ensure visibility */
-    .nav-btn {
-        min-width: 44px;
-        min-height: 44px;
-        font-size: 1.1rem;
-        padding: 10px;
+        height: 50px;
+        /* Match button height */
+        border-radius: 10px;
     }
 
     /* Modal adjustments for mobile */
     .modal {
         max-width: 90%;
-        padding: 16px;
+        padding: 20px;
+        border-radius: 16px;
     }
 
     .modal h2 {
-        font-size: 1rem;
+        font-size: 1.1rem;
+        margin-bottom: 20px;
     }
 
     .modal-btn {
-        padding: 12px;
-        font-size: 0.95rem;
+        padding: 14px;
+        font-size: 1rem;
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .search-input {
         padding: 12px;
         font-size: 1rem;
+        /* prevent iOS zoom */
+        margin-bottom: 15px;
     }
 
     .saved-folder {
         padding: 12px;
+        align-items: center;
     }
 
     .saved-folder-name {
-        font-size: 0.85rem;
-    }
-
-    /* Ensure page input placeholder is visible */
-    .page-input::placeholder {
-        font-size: 0.8rem;
+        font-size: 0.9rem;
     }
 }
 
-/* Extra small devices (phones in portrait, less than 480px) */
-@media (max-width: 480px) {
+/* Extra small devices (phones in portrait, less than 400px) */
+@media (max-width: 400px) {
     .header h1 {
         font-size: 0.9rem;
     }
 
     .random-btn {
         font-size: 0.9rem;
-        padding: 14px 8px;
+        padding: 5px;
+        white-space: normal;
+        line-height: 1.2;
     }
 
     .folder-btn,
     .favorite-btn {
-        font-size: 1.3rem;
-        padding: 14px 14px;
-        min-width: 55px;
+        font-size: 1.2rem;
+        padding: 5px;
     }
 
-    .zoom-btn {
-        padding: 10px 14px;
-        font-size: 1.1rem;
+    .controls {
+        gap: 6px;
     }
 }
