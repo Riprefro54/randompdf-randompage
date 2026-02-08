@@ -515,3 +515,208 @@ body.has-pdf #placeholder {
     opacity: 0;
     pointer-events: none;
 }
+
+/* ========================================
+   MOBILE RESPONSIVE STYLES
+   ======================================== */
+
+@media (max-width: 768px) {
+
+    /* General mobile optimizations */
+    body {
+        font-size: 14px;
+    }
+
+    .header h1 {
+        font-size: 1rem;
+    }
+
+    .info-text {
+        font-size: 0.75rem;
+    }
+
+    .pdf-count {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+    }
+
+    /* Zoom Controls - Larger and more touch-friendly */
+    .zoom-controls {
+        padding: 12px 8px;
+        gap: 12px;
+    }
+
+    .zoom-btn {
+        padding: 12px 16px;
+        font-size: 1.2rem;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .zoom-display {
+        min-width: 60px;
+        font-size: 1rem;
+    }
+
+    /* Main Controls - Grid Layout for better organization */
+    .controls {
+        padding: 10px 8px;
+        gap: 8px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        grid-template-rows: auto auto auto;
+    }
+
+    /* Row 1: Folder, Random, Favorite */
+    .folder-btn {
+        grid-column: 1;
+        grid-row: 1;
+        font-size: 1.4rem;
+        padding: 14px 18px;
+        min-width: 60px;
+        min-height: 50px;
+    }
+
+    .random-btn {
+        grid-column: 2;
+        grid-row: 1;
+        font-size: 1rem;
+        padding: 14px 12px;
+        min-height: 50px;
+    }
+
+    .favorite-btn {
+        grid-column: 3;
+        grid-row: 1;
+        font-size: 1.5rem;
+        padding: 14px 18px;
+        min-width: 60px;
+        min-height: 50px;
+    }
+
+    /* Row 2: First, Previous, Page Input, Next, Last */
+    #first-btn {
+        grid-column: 1;
+        grid-row: 2;
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 1rem;
+        padding: 10px;
+    }
+
+    #prev-btn {
+        grid-column: 1;
+        grid-row: 3;
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 1.2rem;
+        padding: 10px;
+    }
+
+    .page-input-container {
+        grid-column: 2;
+        grid-row: 2 / 4;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: stretch;
+    }
+
+    #next-btn {
+        grid-column: 3;
+        grid-row: 3;
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 1.2rem;
+        padding: 10px;
+    }
+
+    #last-btn {
+        grid-column: 3;
+        grid-row: 2;
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 1rem;
+        padding: 10px;
+    }
+
+    /* Page Input - Stacked vertically */
+    .page-input {
+        width: 100%;
+        font-size: 0.95rem;
+        padding: 10px 8px;
+        min-height: 44px;
+    }
+
+    .go-page-btn {
+        width: 100%;
+        padding: 10px;
+        font-size: 0.95rem;
+        min-height: 44px;
+    }
+
+    /* Navigation buttons - ensure visibility */
+    .nav-btn {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 1.1rem;
+        padding: 10px;
+    }
+
+    /* Modal adjustments for mobile */
+    .modal {
+        max-width: 90%;
+        padding: 16px;
+    }
+
+    .modal h2 {
+        font-size: 1rem;
+    }
+
+    .modal-btn {
+        padding: 12px;
+        font-size: 0.95rem;
+    }
+
+    .search-input {
+        padding: 12px;
+        font-size: 1rem;
+    }
+
+    .saved-folder {
+        padding: 12px;
+    }
+
+    .saved-folder-name {
+        font-size: 0.85rem;
+    }
+
+    /* Ensure page input placeholder is visible */
+    .page-input::placeholder {
+        font-size: 0.8rem;
+    }
+}
+
+/* Extra small devices (phones in portrait, less than 480px) */
+@media (max-width: 480px) {
+    .header h1 {
+        font-size: 0.9rem;
+    }
+
+    .random-btn {
+        font-size: 0.9rem;
+        padding: 14px 8px;
+    }
+
+    .folder-btn,
+    .favorite-btn {
+        font-size: 1.3rem;
+        padding: 14px 14px;
+        min-width: 55px;
+    }
+
+    .zoom-btn {
+        padding: 10px 14px;
+        font-size: 1.1rem;
+    }
+}
