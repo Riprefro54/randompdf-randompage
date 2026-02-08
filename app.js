@@ -94,7 +94,13 @@ const TRANSLATIONS = {
         firstPageTitle: "First Page",
         lastPageTitle: "Last Page",
         prevPageTitle: "Previous Page",
-        nextPageTitle: "Next Page"
+        nextPageTitle: "Next Page",
+        favoritesSearch: "Search favorites...",
+        editFavorite: "Edit",
+        saveFavorite: "Save",
+        cancelEdit: "Cancel",
+        favoriteName: "Favorite name...",
+        noResults: "No results found"
     },
     tr: {
         appTitle: "🎲 PDF Rastgele Sayfa",
@@ -136,7 +142,13 @@ const TRANSLATIONS = {
         firstPageTitle: "İlk Sayfa",
         lastPageTitle: "Son Sayfa",
         prevPageTitle: "Önceki Sayfa",
-        nextPageTitle: "Sonraki Sayfa"
+        nextPageTitle: "Sonraki Sayfa",
+        favoritesSearch: "Favorilerde ara...",
+        editFavorite: "Düzenle",
+        saveFavorite: "Kaydet",
+        cancelEdit: "İptal",
+        favoriteName: "Favori adı...",
+        noResults: "Sonuç bulunamadı"
     }
 };
 
@@ -186,6 +198,9 @@ function setLanguage(lang) {
     if (lastBtn) lastBtn.title = t.lastPageTitle;
     if (prevBtn) prevBtn.title = t.prevPageTitle;
     if (nextBtn) nextBtn.title = t.nextPageTitle;
+
+    // Update favorites search placeholder
+    if (favoritesSearch) favoritesSearch.placeholder = t.favoritesSearch;
 
     // Re-render lists to update empty messages
     const filesModal = document.getElementById('files-modal');
@@ -325,7 +340,7 @@ async function getFavorites() {
 }
 
 // Favori ekle
-async function addFavorite(pdfName, pageNum) {
+async function addFavorite(pdfName, pageNum, customName = null) {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction(FAV_STORE_NAME, 'readwrite');
         const store = transaction.objectStore(FAV_STORE_NAME);
@@ -334,6 +349,7 @@ async function addFavorite(pdfName, pageNum) {
             id,
             pdfName,
             pageNum,
+            customName: customName || null,
             folderName: currentFolderName, // Store folder context
             timestamp: Date.now()
         });
@@ -366,6 +382,32 @@ async function checkFavorite(pdfName, pageNum) {
 
         request.onsuccess = () => resolve(!!request.result);
         request.onerror = () => reject(request.error);
+    });
+}
+
+// Favori ismini güncelle
+async function updateFavoriteName(pdfName, pageNum, customName) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(FAV_STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(FAV_STORE_NAME);
+        const id = `${pdfName}_${pageNum}`;
+
+        // First get the existing favorite
+        const getRequest = store.get(id);
+
+        getRequest.onsuccess = () => {
+            const favorite = getRequest.result;
+            if (favorite) {
+                favorite.customName = customName || null;
+                const putRequest = store.put(favorite);
+                putRequest.onsuccess = () => resolve();
+                putRequest.onerror = () => reject(putRequest.error);
+            } else {
+                reject(new Error('Favorite not found'));
+            }
+        };
+
+        getRequest.onerror = () => reject(getRequest.error);
     });
 }
 
@@ -617,26 +659,61 @@ menuBtn.addEventListener('click', () => {
     settingsModal.classList.add('active');
 });
 
+// Search functionality for favorites
+const favoritesSearch = document.getElementById('favorites-search');
+let currentSearchQuery = '';
+
+if (favoritesSearch) {
+    favoritesSearch.addEventListener('input', (e) => {
+        currentSearchQuery = e.target.value.toLowerCase();
+        renderFavorites();
+    });
+}
+
 async function renderFavorites() {
     const list = document.getElementById('favorites-list');
-    const favorites = await getFavorites();
+    let favorites = await getFavorites();
     const t = TRANSLATIONS[currentLang];
 
+    // Filter by search query
+    if (currentSearchQuery) {
+        favorites = favorites.filter(fav => {
+            const customName = (fav.customName || '').toLowerCase();
+            const pdfName = (fav.pdfName || '').toLowerCase();
+            return customName.includes(currentSearchQuery) || pdfName.includes(currentSearchQuery);
+        });
+    }
+
     if (favorites.length === 0) {
-        list.innerHTML = `<div class="no-saved">${t.noFavs}</div>`;
+        const message = currentSearchQuery ? (currentLang === 'tr' ? 'Sonuç bulunamadı' : 'No results found') : t.noFavs;
+        list.innerHTML = `<div class="no-saved">${message}</div>`;
         return;
     }
 
     favorites.sort((a, b) => b.timestamp - a.timestamp);
 
-    list.innerHTML = favorites.map(fav => `
-        <div class="saved-folder" style="cursor: pointer;">
-            <span class="saved-folder-name" onclick="loadFavorite('${fav.pdfName}', ${fav.pageNum}, '${fav.folderName || ''}')">
-                ★ ${fav.pdfName.replace('.pdf', '')} <small>(S. ${fav.pageNum})</small>
-            </span>
-            <button class="saved-folder-remove" onclick="deleteFavoriteItem('${fav.pdfName}', ${fav.pageNum})">🗑️</button>
-        </div>
-    `).join('');
+    list.innerHTML = favorites.map(fav => {
+        const displayName = fav.customName || fav.pdfName.replace('.pdf', '');
+        const hasCustomName = !!fav.customName;
+        const sanitizedPdfName = fav.pdfName.replace(/'/g, "\\'");
+        const sanitizedFolderName = (fav.folderName || '').replace(/'/g, "\\'");
+
+        return `
+            <div class="saved-folder">
+                <div class="favorite-name-container">
+                    <span class="saved-folder-name favorite-name-display" 
+                          onclick="loadFavorite('${sanitizedPdfName}', ${fav.pageNum}, '${sanitizedFolderName}')"
+                          data-pdf="${sanitizedPdfName}" 
+                          data-page="${fav.pageNum}">
+                        ★ ${displayName} <small>(S. ${fav.pageNum})</small>
+                        ${hasCustomName ? `<br><small style="opacity: 0.6;">${fav.pdfName.replace('.pdf', '')}</small>` : ''}
+                    </span>
+                    <button class="edit-btn" onclick="editFavoriteName('${sanitizedPdfName}', ${fav.pageNum}, this)" title="${currentLang === 'tr' ? 'Düzenle' : 'Edit'}">✏️</button>
+                </div>
+                <button class="saved-folder-remove" onclick="deleteFavoriteItem('${sanitizedPdfName}', ${fav.pageNum})">🗑️</button>
+            </div>
+        `;
+    }).join('');
 }
 
 window.loadFavorite = async (pdfName, pageNum, folderName) => {
@@ -737,6 +814,90 @@ window.deleteFavoriteItem = async (pdfName, pageNum) => {
     if (currentPdfName === pdfName && currentPageNum === pageNum) {
         updateFavoriteButtonState();
     }
+};
+
+window.editFavoriteName = async (pdfName, pageNum, button) => {
+    const container = button.closest('.favorite-name-container');
+    const nameDisplay = container.querySelector('.favorite-name-display');
+
+    // Get current name
+    const transaction = db.transaction(FAV_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(FAV_STORE_NAME);
+    const id = `${pdfName}_${pageNum}`;
+    const request = store.get(id);
+
+    request.onsuccess = async () => {
+        const fav = request.result;
+        if (!fav) return;
+
+        const currentCustomName = fav.customName || '';
+        const originalPdfName = fav.pdfName.replace('.pdf', '');
+
+        // Create input
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'favorite-name-input';
+        input.value = currentCustomName || originalPdfName;
+        input.placeholder = currentLang === 'tr' ? 'Favori adı...' : 'Favorite name...';
+
+        // Save function
+        const save = async () => {
+            const newName = input.value.trim();
+            const nameToSave = (newName && newName !== originalPdfName) ? newName : null;
+
+            await updateFavoriteName(pdfName, pageNum, nameToSave);
+            renderFavorites();
+        };
+
+        // Cancel function
+        const cancel = () => {
+            renderFavorites();
+        };
+
+        // Replace display with input
+        nameDisplay.replaceWith(input);
+        input.focus();
+        input.select();
+
+        // Hide edit button, show save/cancel
+        button.style.display = 'none';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'edit-btn';
+        saveBtn.textContent = '✓';
+        saveBtn.title = currentLang === 'tr' ? 'Kaydet' : 'Save';
+        saveBtn.onclick = (e) => {
+            e.stopPropagation();
+            save();
+        };
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'edit-btn';
+        cancelBtn.textContent = '✕';
+        cancelBtn.title = currentLang === 'tr' ? 'İptal' : 'Cancel';
+        cancelBtn.onclick = (e) => {
+            e.stopPropagation();
+            cancel();
+        };
+
+        container.appendChild(saveBtn);
+        container.appendChild(cancelBtn);
+
+        // Enter to save, Escape to cancel
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                save();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancel();
+            }
+        });
+
+        input.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    };
 };
 
 // Tab Switching Logic
