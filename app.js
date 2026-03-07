@@ -157,7 +157,8 @@ const TRANSLATIONS = {
         blockedTab: "Engellenenler",
         blockBtnTitle: "Sayfayı Engelle",
         unblockBtnTitle: "Engeli Kaldır",
-        noBlocked: "Engellenen sayfa yok"
+        noBlocked: "Engellenen sayfa yok",
+        blockedSearch: "Engellenenlerde ara..."
     }
 };
 
@@ -211,6 +212,7 @@ function setLanguage(lang) {
 
     // Update favorites search placeholder
     if (favoritesSearch) favoritesSearch.placeholder = t.favoritesSearch;
+    if (blockedSearch) blockedSearch.placeholder = t.blockedSearch;
 
     // Re-render lists to update empty messages
     const filesModal = document.getElementById('files-modal');
@@ -403,25 +405,24 @@ async function checkFavorite(pdfName, pageNum) {
     });
 }
 
-// Favori ismini güncelle
-async function updateFavoriteName(pdfName, pageNum, customName) {
+// Ortak İsim Güncelleme (Favori veya Engellenen)
+async function updateItemName(storeName, pdfName, pageNum, customName) {
     return new Promise((resolve, reject) => {
-        const transaction = db.transaction(FAV_STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(FAV_STORE_NAME);
+        const transaction = db.transaction(storeName, 'readwrite');
+        const store = transaction.objectStore(storeName);
         const id = `${pdfName}_${pageNum}`;
 
-        // First get the existing favorite
         const getRequest = store.get(id);
 
         getRequest.onsuccess = () => {
-            const favorite = getRequest.result;
-            if (favorite) {
-                favorite.customName = customName || null;
-                const putRequest = store.put(favorite);
+            const item = getRequest.result;
+            if (item) {
+                item.customName = customName || null;
+                const putRequest = store.put(item);
                 putRequest.onsuccess = () => resolve();
                 putRequest.onerror = () => reject(putRequest.error);
             } else {
-                reject(new Error('Favorite not found'));
+                reject(new Error('Item not found'));
             }
         };
 
@@ -766,64 +767,89 @@ menuBtn.addEventListener('click', () => {
     settingsModal.classList.add('active');
 });
 
-// Search functionality for favorites
-const favoritesSearch = document.getElementById('favorites-search');
-let currentSearchQuery = '';
+// Search functionality
+let favoritesSearchQuery = '';
+let blockedSearchQuery = '';
 
+const favoritesSearch = document.getElementById('favorites-search');
 if (favoritesSearch) {
     favoritesSearch.addEventListener('input', (e) => {
-        currentSearchQuery = e.target.value.toLowerCase();
+        favoritesSearchQuery = e.target.value.toLowerCase();
         renderFavorites();
     });
 }
 
+const blockedSearch = document.getElementById('blocked-search');
+if (blockedSearch) {
+    blockedSearch.addEventListener('input', (e) => {
+        blockedSearchQuery = e.target.value.toLowerCase();
+        renderBlocked();
+    });
+}
+
 async function renderFavorites() {
-    const list = document.getElementById('favorites-list');
-    let favorites = await getFavorites();
+    await renderItems(FAV_STORE_NAME, 'favorites-list', favoritesSearchQuery, 'noFavs', '★');
+}
+
+async function renderBlocked() {
+    await renderItems(BLOCKED_STORE_NAME, 'blocked-list', blockedSearchQuery, 'noBlocked', '🚫');
+}
+
+async function renderItems(storeName, listId, searchQuery, emptyMessageKey, icon) {
+    const list = document.getElementById(listId);
+    let items;
+    if (storeName === FAV_STORE_NAME) {
+        items = await getFavorites();
+    } else {
+        items = await getBlocked();
+    }
     const t = TRANSLATIONS[currentLang];
 
     // Filter by search query
-    if (currentSearchQuery) {
-        favorites = favorites.filter(fav => {
-            const customName = (fav.customName || '').toLowerCase();
-            const pdfName = (fav.pdfName || '').toLowerCase();
-            return customName.includes(currentSearchQuery) || pdfName.includes(currentSearchQuery);
+    if (searchQuery) {
+        items = items.filter(item => {
+            const customName = (item.customName || '').toLowerCase();
+            const pdfName = (item.pdfName || '').toLowerCase();
+            return customName.includes(searchQuery) || pdfName.includes(searchQuery);
         });
     }
 
-    if (favorites.length === 0) {
-        const message = currentSearchQuery ? (currentLang === 'tr' ? 'Sonuç bulunamadı' : 'No results found') : t.noFavs;
+    if (items.length === 0) {
+        const fallbackMsg = storeName === FAV_STORE_NAME ? 'Favori yok' : 'Engellenen sayfa yok';
+        const message = searchQuery ? (currentLang === 'tr' ? 'Sonuç bulunamadı' : 'No results found') : (t[emptyMessageKey] || fallbackMsg);
         list.innerHTML = `<div class="no-saved">${message}</div>`;
         return;
     }
 
-    favorites.sort((a, b) => b.timestamp - a.timestamp);
+    items.sort((a, b) => b.timestamp - a.timestamp);
 
-    list.innerHTML = favorites.map(fav => {
-        const displayName = fav.customName || fav.pdfName.replace('.pdf', '');
-        const hasCustomName = !!fav.customName;
-        const sanitizedPdfName = fav.pdfName.replace(/'/g, "\\'");
-        const sanitizedFolderName = (fav.folderName || '').replace(/'/g, "\\'");
+    list.innerHTML = items.map(item => {
+        const displayName = item.customName || item.pdfName.replace('.pdf', '');
+        const hasCustomName = !!item.customName;
+        const sanitizedPdfName = item.pdfName.replace(/'/g, "\\'");
+        const sanitizedFolderName = (item.folderName || '').replace(/'/g, "\\'");
+
+        const borderStyle = storeName === BLOCKED_STORE_NAME ? 'border-left: 3px solid #ff5555;' : '';
 
         return `
-            <div class="saved-folder">
+            <div class="saved-folder" style="${borderStyle}">
                 <div class="favorite-name-container">
                     <span class="saved-folder-name favorite-name-display" 
-                          onclick="loadFavorite('${sanitizedPdfName}', ${fav.pageNum}, '${sanitizedFolderName}')"
+                          onclick="loadSavedPage('${sanitizedPdfName}', ${item.pageNum}, '${sanitizedFolderName}')"
                           data-pdf="${sanitizedPdfName}" 
-                          data-page="${fav.pageNum}">
-                        ★ ${displayName} <small>(S. ${fav.pageNum})</small>
-                        ${hasCustomName ? `<br><small style="opacity: 0.6;">${fav.pdfName.replace('.pdf', '')}</small>` : ''}
+                          data-page="${item.pageNum}">
+                        ${icon} ${displayName} <small>(S. ${item.pageNum})</small>
+                        ${hasCustomName ? `<br><small style="opacity: 0.6;">${item.pdfName.replace('.pdf', '')}</small>` : ''}
                     </span>
-                    <button class="edit-btn" onclick="editFavoriteName('${sanitizedPdfName}', ${fav.pageNum}, this)" title="${currentLang === 'tr' ? 'Düzenle' : 'Edit'}">✏️</button>
+                    <button class="edit-btn" onclick="editSavedItemName('${storeName}', '${sanitizedPdfName}', ${item.pageNum}, this)" title="${currentLang === 'tr' ? 'Düzenle' : 'Edit'}">✏️</button>
                 </div>
-                <button class="saved-folder-remove" onclick="deleteFavoriteItem('${sanitizedPdfName}', ${fav.pageNum})">🗑️</button>
+                <button class="saved-folder-remove" onclick="deleteSavedItem('${storeName}', '${sanitizedPdfName}', ${item.pageNum})">🗑️</button>
             </div>
         `;
     }).join('');
 }
 
-window.loadFavorite = async (pdfName, pageNum, folderName) => {
+window.loadSavedPage = async (pdfName, pageNum, folderName) => {
     filesModal.classList.remove('active');
 
     // 1. Try to find file in current list
@@ -910,96 +936,62 @@ window.loadFavorite = async (pdfName, pageNum, folderName) => {
         await updateBlockButtonState();
 
     } catch (e) {
-        console.error('Favori yükleme hatası:', e);
+        console.error('Sayfa yükleme hatası:', e);
         alert('Sayfa yüklenemedi: ' + e.message);
         loading.classList.remove('active');
     }
 };
 
-window.deleteFavoriteItem = async (pdfName, pageNum) => {
-    await removeFavorite(pdfName, pageNum);
-    renderFavorites();
-    // If current page is the deleted favorite, update button
-    if (currentPdfName === pdfName && currentPageNum === pageNum) {
-        updateFavoriteButtonState();
+window.deleteSavedItem = async (storeName, pdfName, pageNum) => {
+    if (storeName === FAV_STORE_NAME) {
+        await removeFavorite(pdfName, pageNum);
+        renderFavorites();
+        if (currentPdfName === pdfName && currentPageNum === pageNum) updateFavoriteButtonState();
+    } else {
+        await removeBlocked(pdfName, pageNum);
+        renderBlocked();
+        if (currentPdfName === pdfName && currentPageNum === pageNum) updateBlockButtonState();
     }
 };
 
-window.deleteBlockedItem = async (pdfName, pageNum) => {
-    await removeBlocked(pdfName, pageNum);
-    renderBlocked();
-    if (currentPdfName === pdfName && currentPageNum === pageNum) {
-        updateBlockButtonState();
-    }
-};
-
-async function renderBlocked() {
-    const list = document.getElementById('blocked-list');
-    let blockedItems = await getBlocked();
-    const t = TRANSLATIONS[currentLang];
-
-    if (blockedItems.length === 0) {
-        list.innerHTML = `<div class="no-saved">${t.noBlocked || 'Engellenen sayfa yok'}</div>`;
-        return;
-    }
-
-    blockedItems.sort((a, b) => b.timestamp - a.timestamp);
-
-    list.innerHTML = blockedItems.map(item => {
-        const displayName = item.pdfName.replace('.pdf', '');
-        const sanitizedPdfName = item.pdfName.replace(/'/g, "\\'");
-
-        return `
-            <div class="saved-folder" style="border-left: 3px solid #ff5555;">
-                <div class="favorite-name-container">
-                    <span class="saved-folder-name" 
-                          data-pdf="${sanitizedPdfName}" 
-                          data-page="${item.pageNum}">
-                        🚫 ${displayName} <small>(S. ${item.pageNum})</small>
-                    </span>
-                </div>
-                <button class="saved-folder-remove" onclick="deleteBlockedItem('${sanitizedPdfName}', ${item.pageNum})">🗑️</button>
-            </div>
-        `;
-    }).join('');
-}
-
-window.editFavoriteName = async (pdfName, pageNum, button) => {
+window.editSavedItemName = async (storeName, pdfName, pageNum, button) => {
     const container = button.closest('.favorite-name-container');
     const nameDisplay = container.querySelector('.favorite-name-display');
 
     // Get current name
-    const transaction = db.transaction(FAV_STORE_NAME, 'readonly');
-    const store = transaction.objectStore(FAV_STORE_NAME);
+    const transaction = db.transaction(storeName, 'readonly');
+    const store = transaction.objectStore(storeName);
     const id = `${pdfName}_${pageNum}`;
     const request = store.get(id);
 
     request.onsuccess = async () => {
-        const fav = request.result;
-        if (!fav) return;
+        const item = request.result;
+        if (!item) return;
 
-        const currentCustomName = fav.customName || '';
-        const originalPdfName = fav.pdfName.replace('.pdf', '');
+        const currentCustomName = item.customName || '';
+        const originalPdfName = item.pdfName.replace('.pdf', '');
 
         // Create input
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'favorite-name-input';
         input.value = currentCustomName || originalPdfName;
-        input.placeholder = currentLang === 'tr' ? 'Favori adı...' : 'Favorite name...';
+        input.placeholder = currentLang === 'tr' ? 'Özel isim...' : 'Custom name...';
 
         // Save function
         const save = async () => {
             const newName = input.value.trim();
             const nameToSave = (newName && newName !== originalPdfName) ? newName : null;
 
-            await updateFavoriteName(pdfName, pageNum, nameToSave);
-            renderFavorites();
+            await updateItemName(storeName, pdfName, pageNum, nameToSave);
+            if (storeName === FAV_STORE_NAME) renderFavorites();
+            else renderBlocked();
         };
 
         // Cancel function
         const cancel = () => {
-            renderFavorites();
+            if (storeName === FAV_STORE_NAME) renderFavorites();
+            else renderBlocked();
         };
 
         // Replace display with input
