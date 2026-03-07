@@ -48,6 +48,7 @@ window.onerror = function (msg, url, lineNo, columnNo, error) {
 const DB_NAME = 'PDFRandomApp';
 const STORE_NAME = 'folders';
 const FAV_STORE_NAME = 'favorites';
+const BLOCKED_STORE_NAME = 'blocked';
 
 // File System Access API desteği
 const hasFileSystemAccess = 'showDirectoryPicker' in window;
@@ -100,7 +101,11 @@ const TRANSLATIONS = {
         saveFavorite: "Save",
         cancelEdit: "Cancel",
         favoriteName: "Favorite name...",
-        noResults: "No results found"
+        noResults: "No results found",
+        blockedTab: "Blocked Pages",
+        blockBtnTitle: "Block Page",
+        unblockBtnTitle: "Unblock Page",
+        noBlocked: "No blocked pages"
     },
     tr: {
         appTitle: "PDF Rastgele Sayfa",
@@ -148,7 +153,11 @@ const TRANSLATIONS = {
         saveFavorite: "Kaydet",
         cancelEdit: "İptal",
         favoriteName: "Favori adı...",
-        noResults: "Sonuç bulunamadı"
+        noResults: "Sonuç bulunamadı",
+        blockedTab: "Engellenenler",
+        blockBtnTitle: "Sayfayı Engelle",
+        unblockBtnTitle: "Engeli Kaldır",
+        noBlocked: "Engellenen sayfa yok"
     }
 };
 
@@ -174,6 +183,7 @@ function setLanguage(lang) {
     if (randomBtn) randomBtn.textContent = t.randomBtn;
     if (tabFavorites) tabFavorites.textContent = t.favoritesTab;
     if (tabFolders) tabFolders.textContent = t.foldersTab;
+    if (tabBlocked) tabBlocked.textContent = t.blockedTab;
     updateText('select-new-folder', t.newFolder);
     if (selectFilesBtn) selectFilesBtn.textContent = t.selectFiles;
     updateText('close-files-modal', t.close);
@@ -207,6 +217,7 @@ function setLanguage(lang) {
     if (filesModal && filesModal.classList.contains('active')) {
         renderSavedFolders();
         renderFavorites();
+        renderBlocked();
     }
 }
 
@@ -220,6 +231,7 @@ let ctx = null; // Helper for current render, though PDFJS uses its own
 const randomBtn = document.getElementById('random-btn');
 const folderBtn = document.getElementById('folder-btn');
 const favoriteBtn = document.getElementById('favorite-btn');
+const blockBtn = document.getElementById('block-btn');
 const prevBtn = document.getElementById('prev-btn');
 const nextBtn = document.getElementById('next-btn');
 const firstBtn = document.getElementById('first-btn');
@@ -252,8 +264,10 @@ const selectFilesBtn = document.getElementById('select-files-btn');
 // Modal Tabs
 const tabFavorites = document.getElementById('tab-favorites');
 const tabFolders = document.getElementById('tab-folders');
+const tabBlocked = document.getElementById('tab-blocked');
 const contentFavorites = document.getElementById('favorites-content');
 const contentFolders = document.getElementById('folders-content');
+const contentBlocked = document.getElementById('blocked-content');
 
 let currentPdfName = null;
 let currentPageNum = null;
@@ -269,7 +283,7 @@ let currentFolderName = null;
 // IndexedDB başlat
 async function initDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, 2); // Version increased
+        const request = indexedDB.open(DB_NAME, 3); // Version increased
 
         request.onerror = () => reject(request.error);
 
@@ -285,6 +299,10 @@ async function initDB() {
             }
             if (!database.objectStoreNames.contains(FAV_STORE_NAME)) {
                 const store = database.createObjectStore(FAV_STORE_NAME, { keyPath: 'id' });
+                store.createIndex('pdfName', 'pdfName', { unique: false });
+            }
+            if (!database.objectStoreNames.contains(BLOCKED_STORE_NAME)) {
+                const store = database.createObjectStore(BLOCKED_STORE_NAME, { keyPath: 'id' });
                 store.createIndex('pdfName', 'pdfName', { unique: false });
             }
         };
@@ -409,6 +427,69 @@ async function updateFavoriteName(pdfName, pageNum, customName) {
 
         getRequest.onerror = () => reject(getRequest.error);
     });
+}
+
+// Engellenenleri (Blocked) yükle
+async function getBlocked() {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(BLOCKED_STORE_NAME, 'readonly');
+        const store = transaction.objectStore(BLOCKED_STORE_NAME);
+        const request = store.getAll();
+
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Engellenenlere ekle
+async function addBlocked(pdfName, pageNum) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(BLOCKED_STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(BLOCKED_STORE_NAME);
+        const id = `${pdfName}_${pageNum}`;
+        const request = store.put({
+            id,
+            pdfName,
+            pageNum,
+            folderName: currentFolderName,
+            timestamp: Date.now()
+        });
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Engellenenlerden sil
+async function removeBlocked(pdfName, pageNum) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(BLOCKED_STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(BLOCKED_STORE_NAME);
+        const id = `${pdfName}_${pageNum}`;
+        const request = store.delete(id);
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Engellenen mi kontrolü
+async function checkBlocked(pdfName, pageNum) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(BLOCKED_STORE_NAME, 'readonly');
+        const store = transaction.objectStore(BLOCKED_STORE_NAME);
+        const id = `${pdfName}_${pageNum}`;
+        const request = store.get(id);
+
+        request.onsuccess = () => resolve(!!request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Belirli bir PDF için engellenen sayfa numaralarını getir
+async function getBlockedForPdf(pdfName) {
+    const allBlocked = await getBlocked();
+    return allBlocked.filter(b => b.pdfName === pdfName).map(b => b.pageNum);
 }
 
 // API desteği yoksa uyarı göster
@@ -631,7 +712,32 @@ async function selectNewFolder() {
 
 
 
-// --- UI Logic for Favorites & Menu ---
+// --- UI Logic for Favorites, Block & Menu ---
+
+async function updateBlockButtonState() {
+    if (!currentPdfName || !currentPageNum) {
+        blockBtn.style.color = '#555';
+        return;
+    }
+    const isBlocked = await checkBlocked(currentPdfName, currentPageNum);
+    blockBtn.style.color = isBlocked ? '#ff5555' : '#555'; // Red or gray
+    const t = TRANSLATIONS[currentLang];
+    blockBtn.title = isBlocked ? (t.unblockBtnTitle || 'Engeli Kaldır') : (t.blockBtnTitle || 'Sayfayı Engelle');
+}
+
+blockBtn.addEventListener('click', async () => {
+    if (!currentPdfName || !currentPageNum) return;
+
+    const isBlocked = await checkBlocked(currentPdfName, currentPageNum);
+    if (isBlocked) {
+        await removeBlocked(currentPdfName, currentPageNum);
+    } else {
+        await addBlocked(currentPdfName, currentPageNum);
+        // Skip current page since it's now blocked
+        selectRandomPage();
+    }
+    await updateBlockButtonState();
+});
 
 async function updateFavoriteButtonState() {
     if (!currentPdfName || !currentPageNum) {
@@ -798,7 +904,9 @@ window.loadFavorite = async (pdfName, pageNum, folderName) => {
         loading.classList.remove('active');
 
         favoriteBtn.disabled = false;
+        blockBtn.disabled = false;
         await updateFavoriteButtonState();
+        await updateBlockButtonState();
 
     } catch (e) {
         console.error('Favori yükleme hatası:', e);
@@ -815,6 +923,45 @@ window.deleteFavoriteItem = async (pdfName, pageNum) => {
         updateFavoriteButtonState();
     }
 };
+
+window.deleteBlockedItem = async (pdfName, pageNum) => {
+    await removeBlocked(pdfName, pageNum);
+    renderBlocked();
+    if (currentPdfName === pdfName && currentPageNum === pageNum) {
+        updateBlockButtonState();
+    }
+};
+
+async function renderBlocked() {
+    const list = document.getElementById('blocked-list');
+    let blockedItems = await getBlocked();
+    const t = TRANSLATIONS[currentLang];
+
+    if (blockedItems.length === 0) {
+        list.innerHTML = `<div class="no-saved">${t.noBlocked || 'Engellenen sayfa yok'}</div>`;
+        return;
+    }
+
+    blockedItems.sort((a, b) => b.timestamp - a.timestamp);
+
+    list.innerHTML = blockedItems.map(item => {
+        const displayName = item.pdfName.replace('.pdf', '');
+        const sanitizedPdfName = item.pdfName.replace(/'/g, "\\'");
+
+        return `
+            <div class="saved-folder" style="border-left: 3px solid #ff5555;">
+                <div class="favorite-name-container">
+                    <span class="saved-folder-name" 
+                          data-pdf="${sanitizedPdfName}" 
+                          data-page="${item.pageNum}">
+                        🚫 ${displayName} <small>(S. ${item.pageNum})</small>
+                    </span>
+                </div>
+                <button class="saved-folder-remove" onclick="deleteBlockedItem('${sanitizedPdfName}', ${item.pageNum})">🗑️</button>
+            </div>
+        `;
+    }).join('');
+}
 
 window.editFavoriteName = async (pdfName, pageNum, button) => {
     const container = button.closest('.favorite-name-container');
@@ -908,24 +1055,55 @@ tabFavorites.addEventListener('click', () => {
 
     tabFolders.classList.remove('active');
     tabFolders.style.borderBottom = 'none';
-    tabFolders.style.color = 'rgba(255,255,255,0.5)';
+    if (tabFolders) tabFolders.style.color = 'rgba(255,255,255,0.5)';
 
-    contentFavorites.style.display = 'block';
-    contentFolders.style.display = 'none';
+    if (tabBlocked) tabBlocked.classList.remove('active');
+    if (tabBlocked) tabBlocked.style.borderBottom = 'none';
+    if (tabBlocked) tabBlocked.style.color = 'rgba(255,255,255,0.5)';
+
+    if (contentFavorites) contentFavorites.style.display = 'block';
+    if (contentFolders) contentFolders.style.display = 'none';
+    if (contentBlocked) contentBlocked.style.display = 'none';
 });
 
 tabFolders.addEventListener('click', () => {
-    tabFolders.classList.add('active');
-    tabFolders.style.borderBottom = '2px solid #e94560';
-    tabFolders.style.color = '#e94560';
+    if (tabFolders) tabFolders.classList.add('active');
+    if (tabFolders) tabFolders.style.borderBottom = '2px solid #e94560';
+    if (tabFolders) tabFolders.style.color = '#e94560';
 
-    tabFavorites.classList.remove('active');
-    tabFavorites.style.borderBottom = 'none';
-    tabFavorites.style.color = 'rgba(255,255,255,0.5)';
+    if (tabFavorites) tabFavorites.classList.remove('active');
+    if (tabFavorites) tabFavorites.style.borderBottom = 'none';
+    if (tabFavorites) tabFavorites.style.color = 'rgba(255,255,255,0.5)';
 
-    contentFolders.style.display = 'block';
-    contentFavorites.style.display = 'none';
+    if (tabBlocked) tabBlocked.classList.remove('active');
+    if (tabBlocked) tabBlocked.style.borderBottom = 'none';
+    if (tabBlocked) tabBlocked.style.color = 'rgba(255,255,255,0.5)';
+
+    if (contentFolders) contentFolders.style.display = 'block';
+    if (contentFavorites) contentFavorites.style.display = 'none';
+    if (contentBlocked) contentBlocked.style.display = 'none';
 });
+
+if (tabBlocked) {
+    tabBlocked.addEventListener('click', () => {
+        if (tabBlocked) tabBlocked.classList.add('active');
+        if (tabBlocked) tabBlocked.style.borderBottom = '2px solid #e94560';
+        if (tabBlocked) tabBlocked.style.color = '#e94560';
+
+        if (tabFavorites) tabFavorites.classList.remove('active');
+        if (tabFavorites) tabFavorites.style.borderBottom = 'none';
+        if (tabFavorites) tabFavorites.style.color = 'rgba(255,255,255,0.5)';
+
+        if (tabFolders) tabFolders.classList.remove('active');
+        if (tabFolders) tabFolders.style.borderBottom = 'none';
+        if (tabFolders) tabFolders.style.color = 'rgba(255,255,255,0.5)';
+
+        if (contentBlocked) contentBlocked.style.display = 'block';
+        if (contentFavorites) contentFavorites.style.display = 'none';
+        if (contentFolders) contentFolders.style.display = 'none';
+    });
+}
+
 
 // Update existing listeners for new logic
 // (Removed duplicate folderBtn listener - correct one exists at line ~465)
@@ -1148,6 +1326,7 @@ async function goToPage(pageNum) {
 
         loading.classList.remove('active');
         await updateFavoriteButtonState();
+        await updateBlockButtonState();
     } catch (e) {
         console.error("Go to page error", e);
         loading.classList.remove('active');
@@ -1187,6 +1366,7 @@ async function changePage(offset) {
 
             loading.classList.remove('active');
             await updateFavoriteButtonState(); // Update fav state for new page
+            await updateBlockButtonState(); // Update block state for new page
         } catch (e) {
             console.error("Navigation error", e);
             loading.classList.remove('active');
@@ -1304,7 +1484,21 @@ async function selectRandomPage() {
         currentPdfDoc = pdfDoc; // Track for cleanup
 
         const totalPages = pdfDoc.numPages;
-        const randomPageNum = Math.floor(Math.random() * totalPages) + 1;
+        const blockedPages = await getBlockedForPdf(randomFile.name);
+
+        let availablePages = [];
+        for (let i = 1; i <= totalPages; i++) {
+            if (!blockedPages.includes(i)) availablePages.push(i);
+        }
+
+        let randomPageNum;
+        if (availablePages.length > 0) {
+            randomPageNum = availablePages[Math.floor(Math.random() * availablePages.length)];
+        } else {
+            // Fallback if all pages are blocked
+            randomPageNum = Math.floor(Math.random() * totalPages) + 1;
+            console.warn('All pages are blocked for this PDF. Falling back to random.');
+        }
 
         await renderPage(pdfDoc, randomPageNum);
 
@@ -1323,9 +1517,11 @@ async function selectRandomPage() {
         loading.classList.remove('active');
         // No freezeFrame logic needed, swap happened in renderPage
 
-        // Update favorite button
+        // Update favorite and block button
         favoriteBtn.disabled = false;
+        blockBtn.disabled = false;
         await updateFavoriteButtonState();
+        await updateBlockButtonState();
 
     } catch (error) {
         console.error('PDF yükleme hatası:', error);
@@ -1334,6 +1530,7 @@ async function selectRandomPage() {
         // Could not swap, so old canvas remains visible or whatever
         placeholder.style.display = 'block';
         favoriteBtn.disabled = true;
+        blockBtn.disabled = true;
     }
 }
 
