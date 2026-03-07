@@ -641,6 +641,7 @@ folderBtn.addEventListener('click', async () => {
     savedFolders = await loadSavedFolders();
     renderSavedFolders();
     renderFavorites();
+    renderBlocked();
     filesModal.classList.add('active');
     tabFolders.click(); // Switch to folders tab
 });
