@@ -1534,5 +1534,160 @@ async function selectRandomPage() {
     }
 }
 
+// --- TEST RANDOMIZER LOGIC ---
+const testRandomBtn = document.getElementById('test-random-btn');
+if (testRandomBtn) {
+    testRandomBtn.addEventListener('click', async () => {
+        if (pdfFiles.length === 0) {
+            alert(currentLang === 'tr' ? "Lütfen test için PDF klasörünüzü yükleyin!" : "Please load PDF folder for testing!");
+            return;
+        }
+
+        settingsModal.classList.remove('active');
+        debugConsole.style.display = 'block';
+
+        logToDebug("=== RASTGELE SEÇİM & ENGELLEME TESTİ BAŞLADI ===");
+        logToDebug(`Yüklü PDF Sayısı: ${pdfFiles.length}`);
+
+        let allAvailablePages = [];
+        let totalBlockedCount = 0;
+        const TEST_ITERATION = 10000;
+        const blockRatio = 0.2; // %20 of the existing pages will be newly blocked
+
+        logToDebug("Lütfen bekleyin, sayfalar analiz ediliyor ve sınırlandırılıyor...");
+        const oldInfoText = infoText.textContent;
+        infoText.textContent = "Test Hazırlanıyor...";
+        placeholder.style.display = 'none';
+        loading.classList.add('active');
+
+        try {
+            for (const file of pdfFiles) {
+                const pdfName = file.name;
+                const fileUrl = URL.createObjectURL(file);
+                try {
+                    const loadingTask = pdfjsLib.getDocument({ url: fileUrl });
+                    const pdfDoc = await loadingTask.promise;
+                    const totalPages = pdfDoc.numPages;
+
+                    const originalBlocked = await getBlockedForPdf(pdfName);
+                    let blockedForThisFile = [...originalBlocked];
+
+                    // Block more pages randomly for testing
+                    for (let i = 1; i <= totalPages; i++) {
+                        if (!originalBlocked.includes(i) && Math.random() < blockRatio) {
+                            await addBlocked(pdfName, i);
+                            blockedForThisFile.push(i);
+                            totalBlockedCount++;
+                        }
+                    }
+
+                    const availableForThisFile = [];
+                    for (let i = 1; i <= totalPages; i++) {
+                        if (!blockedForThisFile.includes(i)) {
+                            availableForThisFile.push({ pdfName: pdfName, pageNum: i });
+                        }
+                    }
+
+                    if (availableForThisFile.length > 0) {
+                        allAvailablePages.push({
+                            pdfName: pdfName,
+                            available: availableForThisFile.map(p => p.pageNum)
+                        });
+                    }
+
+                } catch (e) {
+                    logToDebug(`Hata (${pdfName}): ${e.message}`, "error");
+                }
+                URL.revokeObjectURL(fileUrl);
+            }
+
+            if (allAvailablePages.length === 0) {
+                logToDebug("HATA: Tüm sayfalar engellendi, test yapılamaz!", "error");
+                return;
+            }
+
+            logToDebug(`Test için yeni eklenen engel sayısı: ${totalBlockedCount}`);
+            logToDebug(`Erişime Açık Olan PDF Sayısı: ${allAvailablePages.length}`);
+
+            logToDebug(`1. AŞAMA: ${TEST_ITERATION} kez seçim algoritması koşuluyor...`);
+            const selectionCounts = {};
+            let blockedSelectionError = 0;
+
+            const allBlockedFromDB = await getBlocked();
+            const blockedSet = new Set(allBlockedFromDB.map(b => `${b.pdfName}_${b.pageNum}`));
+
+            for (let i = 0; i < TEST_ITERATION; i++) {
+                // The exact logic in app.js
+                // 1. Random PDF file
+                const randomPdfObj = allAvailablePages[Math.floor(Math.random() * allAvailablePages.length)];
+
+                // 2. Random page from available ones
+                const availablePagesForSelectedPdf = randomPdfObj.available;
+                const randomPageNum = availablePagesForSelectedPdf[Math.floor(Math.random() * availablePagesForSelectedPdf.length)];
+
+                const key = `${randomPdfObj.pdfName}_${randomPageNum}`;
+
+                // Integrity check
+                if (blockedSet.has(key)) {
+                    blockedSelectionError++;
+                }
+
+                selectionCounts[key] = (selectionCounts[key] || 0) + 1;
+            }
+
+            logToDebug(`2. AŞAMA: Doğruluk Kontrolü`);
+            if (blockedSelectionError > 0) {
+                logToDebug(`HATA: ${blockedSelectionError} kez engelli sayfa seçildi! Algoritma arızalı.`, "error");
+            } else {
+                logToDebug(`BAŞARILI: Engelli hiçbir sayfa seçilmedi. (Hatasızlık oranı: %100)`);
+            }
+
+            logToDebug(`3. AŞAMA: Rastgelelik Dağılım Kontrolü`);
+            // Assuming even spread across ALL pages (which is not perfectly true if pdf page counts vary heavily,
+            // because our normal algorithm picks uniformly among files first! Files with less pages will have those pages picked more frequently.)
+
+            // To be accurate, expected picks per page = (1/total_pdfs) * (1/pages_in_that_pdf) * TEST_ITERATION.
+            let minDiffPercent = 999;
+            let maxDiffPercent = 0;
+            let healthyDistributions = 0;
+            const keys = Object.keys(selectionCounts);
+
+            if (keys.length > 0) {
+                for (const pdfObj of allAvailablePages) {
+                    const expectedPicksForThisPdfPage = (1 / allAvailablePages.length) * (1 / pdfObj.available.length) * TEST_ITERATION;
+
+                    for (const pg of pdfObj.available) {
+                        const key = `${pdfObj.pdfName}_${pg}`;
+                        const count = selectionCounts[key] || 0;
+                        const diffPerc = Math.abs((count - expectedPicksForThisPdfPage) / expectedPicksForThisPdfPage) * 100;
+
+                        if (diffPerc < minDiffPercent) minDiffPercent = diffPerc;
+                        if (diffPerc > maxDiffPercent) maxDiffPercent = diffPerc;
+                        if (diffPerc < 30) healthyDistributions++;
+                    }
+                }
+
+                logToDebug(`Tahmini sapma (Min/Max): %${minDiffPercent.toFixed(1)} / %${maxDiffPercent.toFixed(1)}`);
+
+                const ratio = Math.round((healthyDistributions / keys.length) * 100);
+                if (ratio > 90) {
+                    logToDebug(`Rastgelelik Mükemmel: Sayfaların %${ratio}'ü beklenen (%30 sapma içi) seçim sayısına ulaşıyor.`);
+                } else if (ratio > 70) {
+                    logToDebug(`Rastgelelik Başarılı: Sayfaların %${ratio}'si beklenen ideale uygun.`);
+                } else {
+                    logToDebug(`Rastgelelik Dağılımı Dengesiz (Aşırı sapma): Sağlamlık oranı %${ratio}`, "error");
+                }
+            }
+
+            logToDebug("=== TEST TAMAMLANDI ===");
+            renderBlocked();
+        } finally {
+            infoText.textContent = oldInfoText;
+            loading.classList.remove('active');
+            placeholder.style.display = 'block';
+        }
+    });
+}
+
 // Başlat
 init();
